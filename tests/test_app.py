@@ -213,6 +213,38 @@ class DatabaseIntegrationTests(unittest.TestCase):
             finally:
                 conn.close()
 
+    def test_live_vehicle_filters_match_seed_records(self):
+        response = self.client.get("/table/VEHICLE?filter_Color=Wh")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("TN23AB1001", html)
+        self.assertIn("KL07IJ5005", html)
+        self.assertIn("WB06OP8008", html)
+        self.assertNotIn("TN09CD2002", html)
+
+        response = self.client.get("/table/VEHICLE?filter_Color=White&filter_min_Mileage=18000&filter_max_Mileage=22000")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("TN23AB1001", html)
+        self.assertIn("KL07IJ5005", html)
+        self.assertNotIn("WB06OP8008", html)
+
+    def test_live_date_filter_returns_only_requested_appointments(self):
+        response = self.client.get("/table/APPOINTMENT?filter_from_Appointment_Date=2026-10-01&filter_to_Appointment_Date=2026-10-05")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("5 record(s) shown", html)
+        self.assertIn("701", html)
+        self.assertIn("705", html)
+        self.assertNotIn("706", html)
+
+    def test_live_global_search_preserves_column_filter(self):
+        response = self.client.get("/table/VEHICLE?q=TN23&filter_Color=White")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("TN23AB1001", html)
+        self.assertNotIn("TN09CD2002", html)
+
     def test_database_rejects_orphan_vehicle_and_negative_mileage(self):
         conn = project.db()
         try:
