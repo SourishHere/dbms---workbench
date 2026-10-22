@@ -52,3 +52,5 @@
 .note{margin:14px 0}
 @media(max-width:900px){.column-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.column-filter-grid,.form-grid{grid-template-columns:1fr}.bottom-links{flex-direction:column}.report-head{flex-direction:column}}
+
+.form-table-title{font-size:28px!important;line-height:1.2;margin:4px 0 8px!important;color:var(--ink)}
