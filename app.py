@@ -479,6 +479,12 @@ def edit_table(table):
                 flash("Primary-key and foreign-key columns cannot be modified here. Remove or redesign their constraints first.", "error")
                 return redirect(url_for("edit_table", table=table))
             definition = qi(name) + " " + allowed_types[raw_type] + (" NULL" if nullable else " NOT NULL")
+            if current["default"] is not None:
+                default_value = str(current["default"])
+                if default_value.upper() in {"CURRENT_TIMESTAMP", "CURRENT_DATE", "CURRENT_TIME"} or re.fullmatch(r"-?\d+(?:\.\d+)?", default_value):
+                    definition += " DEFAULT " + default_value
+                else:
+                    definition += " DEFAULT '" + default_value.replace("\\", "\\\\").replace("'", "''") + "'"
             statements.append("ALTER TABLE " + qi(table) + " MODIFY COLUMN " + definition)
         elif action == "rule":
             name = request.form.get("fk_rule_column", "")
