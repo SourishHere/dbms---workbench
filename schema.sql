@@ -342,8 +342,11 @@ LEFT JOIN APPOINTMENT a ON v.Vehicle_ID=a.Vehicle_ID;
 -- ============================================================
 -- SQL QUERY LIBRARY
 -- These are the 16 predefined reports shown on the website's
--- SQL Query page. Run each SELECT individually when needed.
+-- SQL Query page. They are kept in a block comment so sourcing
+-- schema.sql does not execute reports during database setup.
+-- Copy an individual SELECT into MySQL when you want to run it.
 -- ============================================================
+/*
 
 -- QUERY 1: Vehicle Service History
 -- Purpose: Service dates, vehicle model, mechanic, service type and cost.
@@ -492,3 +495,4 @@ ORDER BY Mileage DESC;
 -- QUERY 16: Customer-Vehicle-Appointment View
 -- Purpose: Read the saved view that combines customer, vehicle and appointment information.
 SELECT * FROM CustomerVehicleAppointment;
+*/
