@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ mode|capitalize }} {{ label }}{% endblock %}
-{% block heading %}{{ mode|capitalize }} record{% endblock %}
+{% block heading %}{{ label }}{% endblock %}
 {% block content %}
 <section class="sectionhead">
   <div>
-    <p class="eyebrow">{{ label }}</p>
-    <h2>{{ mode|capitalize }} record</h2>
-    <p>Required fields must be completed. Related records use dropdowns.</p>
+    <p class="eyebrow">{{ mode|capitalize }} record</p>
+    <h2 class="form-table-title">{{ label }}</h2>
+    <p>Fill appropriate details. Fields marked * are required.</p>
   </div>
 </section>
 
