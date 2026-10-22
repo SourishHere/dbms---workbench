@@ -128,6 +128,15 @@ def datetime_input(value):
     if isinstance(value,(date,datetime)): return value.strftime("%Y-%m-%dT%H:%M")
     return str(value).replace(" ","T")[:16]
 
+@app.template_filter("date_only")
+def date_only(value):
+    if value is None: return value
+    if isinstance(value, (date, datetime)): return value.strftime("%Y-%m-%d")
+    value = str(value)
+    if re.match(r"^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}", value):
+        return value[:10]
+    return value
+
 @app.context_processor
 def inject_navigation():
     return {"nav_tables":TABLES,"labels":LABELS,"db_backend":"MySQL"}
