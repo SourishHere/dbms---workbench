@@ -293,7 +293,10 @@ def add_record(table):
             cur=conn.cursor(); cur.execute(sql,[data[n] for n in names]); conn.commit(); cur.close()
             flash("Record added to "+LABELS[table]+".","success"); return redirect(url_for("table_page",table=table))
         except (Error,ValueError) as exc:
-            conn.rollback(); flash("Could not add record: "+str(exc),"error"); return render_record_form(table,"add",data)
+            conn.rollback()
+            app.logger.warning("Could not add record to %s: %s", table, exc)
+            flash("Could not add record. Check the entered values and database constraints.","error")
+            return render_record_form(table,"add",data)
 
 @app.route("/table/<table>/edit/<path:key>",methods=["GET","POST"])
 def edit_record(table,key):
@@ -330,7 +333,10 @@ def edit_record(table,key):
                 cur=conn.cursor(); cur.execute(sql,list(data.values())+[key]); conn.commit(); cur.close()
             flash("Record updated in "+LABELS[table]+".","success"); return redirect(url_for("table_page",table=table))
         except (Error,ValueError) as exc:
-            conn.rollback(); flash("Could not update record: "+str(exc),"error"); return render_record_form(table,"edit",{**record,**data})
+            conn.rollback()
+            app.logger.warning("Could not update record in %s: %s", table, exc)
+            flash("Could not update record. Check the entered values and database constraints.","error")
+            return render_record_form(table,"edit",{**record,**data})
 
 @app.route("/table/<table>/delete/<path:key>",methods=["POST"])
 def delete_record(table,key):
@@ -343,7 +349,9 @@ def delete_record(table,key):
             cur=conn.cursor(); cur.execute("DELETE FROM "+qi(table)+" WHERE "+qi(pk)+"=%s",(key,)); conn.commit()
             flash("Record deleted." if cur.rowcount else "No matching record.","success" if cur.rowcount else "error"); cur.close()
         except Error as exc:
-            conn.rollback(); flash("Could not delete record. It may be referenced by another record. "+str(exc),"error")
+            conn.rollback()
+            app.logger.warning("Could not delete record from %s: %s", table, exc)
+            flash("Could not delete record. It may be referenced by another record or violate a database constraint.","error")
     return redirect(url_for("table_page",table=table))
 
 REPORTS = {
