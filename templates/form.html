@@ -11,6 +11,7 @@
 </section>
 
 <form method="post" class="record-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="form-grid">
     {% for col in columns %}
       {% set field_name = col.name|lower %}
