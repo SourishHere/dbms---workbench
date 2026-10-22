@@ -16,12 +16,12 @@
     {% for col in columns %}
       {% set field_name = col.name|lower %}
       {% set current_value = record.get(col.name, '') %}
-      {% set must_fill = (col.notnull and col.default is none and not col.pk) or (table == 'MECHANIC' and field_name == 'specialization') or (table == 'INVOICE' and field_name in ['total_amount','payment_status']) or (table == 'PAYMENT' and field_name == 'payment_mode') or (table == 'WARRANTY' and field_name == 'part_id') or (table == 'FEEDBACK' and field_name == 'rating') or (table == 'VEHICLE' and field_name == 'manufacture_year') %}
+      {% set must_fill = (col.notnull and col.default is none and (not col.pk or not col.identity)) or (table == 'MECHANIC' and field_name == 'specialization') or (table == 'INVOICE' and field_name in ['total_amount','payment_status']) or (table == 'PAYMENT' and field_name == 'payment_mode') or (table == 'WARRANTY' and field_name == 'part_id') or (table == 'FEEDBACK' and field_name == 'rating') or (table == 'VEHICLE' and field_name == 'manufacture_year') %}
       {% if not (mode == 'edit' and col.pk) and not (mode == 'add' and col.identity) %}
         <div class="field">
           <label for="{{ col.name }}">
             {{ col.name|replace('_', ' ') }}
-            {% if (col.notnull and col.default is none and not col.pk) or (table == "MECHANIC" and field_name == "specialization") or (table == "INVOICE" and field_name in ["total_amount","payment_status"]) or (table == "PAYMENT" and field_name == "payment_mode") or (table == "WARRANTY" and field_name == "part_id") or (table == "FEEDBACK" and field_name == "rating") or (table == "VEHICLE" and field_name == "manufacture_year") %} *{% endif %}
+            {% if (col.notnull and col.default is none and (not col.pk or not col.identity)) or (table == "MECHANIC" and field_name == "specialization") or (table == "INVOICE" and field_name in ["total_amount","payment_status"]) or (table == "PAYMENT" and field_name == "payment_mode") or (table == "WARRANTY" and field_name == "part_id") or (table == "FEEDBACK" and field_name == "rating") or (table == "VEHICLE" and field_name == "manufacture_year") %} *{% endif %}
           </label>
 
           {% if table == 'FEEDBACK' and field_name == 'rating' %}
