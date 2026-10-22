@@ -2,41 +2,34 @@
 
 This is the MySQL Workbench / MySQL Server port of the original Flask DBMS project in [SourishHere/DBMS](https://github.com/SourishHere/DBMS/tree/main/vehicle_service_review3).
 
-## Feature parity
-- Dashboard with live customer, vehicle, appointment and completion counts, recent appointments and table counts.
-- All 15 original tables and the `CustomerVehicleAppointment` view.
-- Original demo records and IDs copied from the original SQLite demo schema.
-- Dynamic table browsing and record counts.
-- Search across columns and combined per-column text, numeric range and date range filters.
-- Add, view, edit and delete operations with MySQL constraint handling.
-- Related foreign-key dropdowns, enum dropdowns, date/time inputs and basic input validation.
-- Six SQL reports: joins, WHERE/ORDER BY, GROUP BY/HAVING, aggregates, subquery and view.
-- `/health` endpoint for database and schema counts.
+## Restored original features and data
+- The same 15 original tables and the `CustomerVehicleAppointment` view.
+- Original sample rows, identifiers and relationships copied from the original SQLite demo schema.
+- Dashboard with live customer, vehicle, appointment and completed-appointment counts, recent appointments and table counts.
+- Dynamic table browsing, row counts, primary-key information and search across columns.
+- Combined per-column text filters, numeric ranges and date ranges.
+- Add, view, edit and delete operations with MySQL constraint-error feedback.
+- Related-record dropdowns for foreign keys, dropdowns for status/payment/fuel/vehicle types, date/time fields and required-field checks.
+- Six SQL reports: JOIN, WHERE/ORDER BY, GROUP BY/HAVING, aggregates, subquery and the view.
+- `/health` endpoint to inspect the selected database and count tables/views.
 
 ## Requirements
 - Python 3.10+
 - MySQL Server and MySQL Workbench
-- MySQL database created by the included `schema.sql`
 
 ## Setup
-1. Open `schema.sql` in MySQL Workbench and execute it **only if this is a fresh/empty `vehicle_service` database**. It creates `vehicle_service`, its 15 tables, the view and the original demo data. It does not drop existing tables.
-2. Create a virtual environment and install dependencies:
+1. Open `schema.sql` in MySQL Workbench and execute it **only if `vehicle_service` is fresh/empty**. It creates the database, 15 tables, the view and original demo data. It does not drop tables.
+2. In Terminal, enter the project folder and run:
 
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
-   ```
-
-3. Copy `.env.example` to `.env` and set the MySQL credentials:
-
-   ```bash
    cp .env.example .env
    ```
 
-   Set `MYSQL_HOST=127.0.0.1`, `MYSQL_PORT=3306`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE=vehicle_service`. Do not commit `.env`.
-
-4. Run the website:
+3. Edit `.env` with your own working MySQL credentials. Set `MYSQL_HOST=127.0.0.1`, `MYSQL_PORT=3306`, `MYSQL_USER` and `MYSQL_PASSWORD` to the account you tested in Workbench, and `MYSQL_DATABASE=vehicle_service`. Keep `.env` private; do not commit it.
+4. Start the website:
 
    ```bash
    python app.py
@@ -45,7 +38,8 @@ This is the MySQL Workbench / MySQL Server port of the original Flask DBMS proje
 5. Open http://127.0.0.1:5000.
 
 ## Important
-- The website reads and writes to MySQL Server; Workbench is the SQL client used to inspect the same database.
-- `SERVICE_PART` has a composite primary key, so generic row-level edit/delete is disabled for that table; use Workbench SQL for changes to it.
-- Do not re-run `schema.sql` after adding records. The schema intentionally avoids destructive `DROP` statements, but existing table names will cause creation errors.
-- The code has been ported to preserve the original features and sample data. Test it against your local MySQL instance before relying on it for a live demo.
+- The website connects to MySQL Server. MySQL Workbench is the client used to inspect that same database.
+- The database name used by this repository is `vehicle_service`. If you previously created a separate empty `vehicle_service_db`, it is not the database selected by this project's schema.
+- `SERVICE_PART` has a composite primary key, so generic row-level edit/delete is disabled for safety. Change those rows in Workbench SQL.
+- Do not run `schema.sql` again after adding your own records. Existing tables will cause creation errors; the script deliberately contains no destructive `DROP` statements.
+- The project files are ported for feature and demo-data parity, but the website still needs to be run against your local MySQL instance to verify runtime behavior.
