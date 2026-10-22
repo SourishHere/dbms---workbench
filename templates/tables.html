@@ -6,8 +6,9 @@
   <div>
     <p class="eyebrow">DATABASE STRUCTURE</p>
     <h2>Your relational schema</h2>
-    <p>Browse all 15 tables and inspect columns, row counts and primary keys.</p>
+    <p>Browse {{ items|length }} tables, inspect their structure, or create a new table.</p>
   </div>
+  <a class="button primary" href="{{ url_for('create_table') }}">+ Create Table</a>
 </section>
 
 <section class="table-group">
