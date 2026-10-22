@@ -138,9 +138,8 @@ def index():
         counts={t:count_rows(conn,t) for t in TABLES}
         cur=conn.cursor()
         cur.execute("SELECT COUNT(*) FROM APPOINTMENT WHERE Status='Completed'"); completed=cur.fetchone()[0]
-        cur.execute("SELECT a.Appointment_ID,a.Appointment_Date,a.Status,c.Customer_Name,v.Registration_No FROM APPOINTMENT a JOIN VEHICLE v ON a.Vehicle_ID=v.Vehicle_ID JOIN CUSTOMER c ON v.Customer_ID=c.Customer_ID ORDER BY a.Appointment_ID DESC LIMIT 6")
-        recent=cur.fetchall(); cur.close()
-    return render_template("index.html",counts=counts,customer_count=counts["CUSTOMER"],vehicle_count=counts["VEHICLE"],appointment_count=counts["APPOINTMENT"],completed=completed,recent={"rows":recent,"error":None})
+        cur.close()
+    return render_template("index.html",counts=counts,customer_count=counts["CUSTOMER"],vehicle_count=counts["VEHICLE"],appointment_count=counts["APPOINTMENT"],completed=completed)
 
 @app.route("/tables")
 def tables_page():
