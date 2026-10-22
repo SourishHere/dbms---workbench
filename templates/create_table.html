@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Create Table | Vehicle Service{% endblock %}
+{% block heading %}Create Table{% endblock %}
+{% block content %}
+<section class="sectionhead">
+  <div>
+    <p class="eyebrow">DATABASE DESIGN</p>
+    <h2>Create a new database table</h2>
+    <p>Define the columns below. The table is created in MySQL and its SQL is appended to schema.sql.</p>
+  </div>
+  <a class="button ghost" href="{{ url_for('tables_page') }}">Back to Tables</a>
+</section>
+
+<form method="post" class="record-form" id="create-table-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="field">
+    <label for="table_name">Table name *</label>
+    <input id="table_name" name="table_name" type="text" maxlength="64" pattern="[A-Za-z][A-Za-z0-9_]*" placeholder="e.g. INSURANCE" required>
+    <small>Start with a letter. Use letters, numbers, and underscores.</small>
+  </div>
+
+  <div class="sectionhead" style="margin-top:24px">
+    <div>
+      <h2>Columns</h2>
+      <p>Choose exactly one primary key. AUTO_INCREMENT is available for INT primary keys.</p>
+    </div>
+    <button class="button ghost" type="button" id="add-column">+ Add column</button>
+  </div>
+
+  <div id="column-list" class="create-column-list">
+    {% for index in range(3) %}
+    <div class="create-column-row" data-column-row>
+      <div class="field">
+        <label>Column name *</label>
+        <input name="column_name[]" type="text" maxlength="64" pattern="[A-Za-z][A-Za-z0-9_]*" placeholder="{{ ['ID','Name','Created_Date'][index] }}" required>
+      </div>
+      <div class="field">
+        <label>Data type *</label>
+        <select name="column_type[]" required>
+          <option value="INT"{% if index == 0 %} selected{% endif %}>INT</option>
+          <option value="VARCHAR(255)"{% if index == 1 %} selected{% endif %}>VARCHAR(255)</option>
+          <option value="TEXT">TEXT</option>
+          <option value="DECIMAL(10,2)">DECIMAL(10,2)</option>
+          <option value="DATE"{% if index == 2 %} selected{% endif %}>DATE</option>
+          <option value="DATETIME">DATETIME</option>
+          <option value="BOOLEAN">BOOLEAN</option>
+        </select>
+      </div>
+      <label class="create-check"><input type="checkbox" name="column_pk[]" value="{{ index }}"{% if index == 0 %} checked{% endif %}> Primary key</label>
+      <label class="create-check"><input type="checkbox" name="column_required[]" value="{{ index }}"{% if index == 0 %} checked{% endif %}> Not null</label>
+      <label class="create-check"><input type="checkbox" name="column_auto[]" value="{{ index }}"{% if index == 0 %} checked{% endif %}> Auto increment</label>
+      <button class="button ghost remove-column" type="button" aria-label="Remove column">Remove</button>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="form-actions">
+    <button class="button primary" type="submit">Create Table</button>
+    <a class="button ghost" href="{{ url_for('tables_page') }}">Cancel</a>
+  </div>
+</form>
+
+<script>
+(function () {
+  const list = document.getElementById("column-list");
+  const addButton = document.getElementById("add-column");
+  function renumber() {
+    Array.from(list.querySelectorAll("[data-column-row]")).forEach((row, index) => {
+      row.querySelectorAll('input[type="checkbox"]').forEach((box) => { box.value = String(index); });
+      const remove = row.querySelector(".remove-column");
+      remove.disabled = list.children.length <= 1;
+    });
+  }
+  addButton.addEventListener("click", () => {
+    if (list.children.length >= 20) return;
+    const row = document.createElement("div");
+    row.className = "create-column-row";
+    row.setAttribute("data-column-row", "");
+    row.innerHTML = '<div class="field"><label>Column name *</label><input name="column_name[]" type="text" maxlength="64" pattern="[A-Za-z][A-Za-z0-9_]*" placeholder="Column_Name" required></div>' +
+      '<div class="field"><label>Data type *</label><select name="column_type[]" required><option value="INT">INT</option><option value="VARCHAR(255)" selected>VARCHAR(255)</option><option value="TEXT">TEXT</option><option value="DECIMAL(10,2)">DECIMAL(10,2)</option><option value="DATE">DATE</option><option value="DATETIME">DATETIME</option><option value="BOOLEAN">BOOLEAN</option></select></div>' +
+      '<label class="create-check"><input type="checkbox" name="column_pk[]"> Primary key</label>' +
+      '<label class="create-check"><input type="checkbox" name="column_required[]"> Not null</label>' +
+      '<label class="create-check"><input type="checkbox" name="column_auto[]"> Auto increment</label>' +
+      '<button class="button ghost remove-column" type="button">Remove</button>';
+    list.appendChild(row);
+    renumber();
+  });
+  list.addEventListener("click", (event) => {
+    const button = event.target.closest(".remove-column");
+    if (button && list.children.length > 1) {
+      button.closest("[data-column-row]").remove();
+      renumber();
+    }
+  });
+  renumber();
+})();
+</script>
+{% endblock %}
