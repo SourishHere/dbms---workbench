@@ -15,6 +15,7 @@
     {% for col in columns %}
       {% set field_name = col.name|lower %}
       {% set current_value = record.get(col.name, '') %}
+      {% set must_fill = (col.notnull and col.default is none and not col.pk) or (table == 'MECHANIC' and field_name == 'specialization') or (table == 'INVOICE' and field_name in ['total_amount','payment_status']) or (table == 'PAYMENT' and field_name == 'payment_mode') or (table == 'WARRANTY' and field_name == 'part_id') or (table == 'FEEDBACK' and field_name == 'rating') or (table == 'VEHICLE' and field_name == 'manufacture_year') %}
       {% if not (mode == 'edit' and col.pk) and not (mode == 'add' and col.identity) %}
         <div class="field">
           <label for="{{ col.name }}">
@@ -30,7 +31,7 @@
               {% endfor %}
             </select>
           {% elif col.fk and col.options %}
-            <select id="{{ col.name }}" name="{{ col.name }}" {% if col.notnull %}required{% endif %}>
+            <select id="{{ col.name }}" name="{{ col.name }}" {% if must_fill %}required{% endif %}>
               <option value="">Choose related record</option>
               {% for option in col.options %}
                 <option value="{{ option.value }}"{% if current_value|string == option.value|string %} selected{% endif %}>{{ option.value }} — {{ option.label }}</option>
@@ -55,9 +56,9 @@
           {% elif 'DATE' in col.type or field_name.endswith('_date') or field_name == 'last_updated' %}
             <input id="{{ col.name }}" name="{{ col.name }}" type="date" value="{{ current_value|date_input }}" {% if col.notnull %}required{% endif %}>
           {% elif 'INT' in col.type or 'YEAR' in col.type %}
-            <input id="{{ col.name }}" name="{{ col.name }}" type="number" step="1" {% if field_name == "manufacture_year" %}min="2001" max="2099"{% endif %} value="{{ '' if current_value is none else current_value }}" {% if col.notnull or (table == "VEHICLE" and field_name == "manufacture_year") %}required{% endif %}>
+            <input id="{{ col.name }}" name="{{ col.name }}" type="number" step="1" {% if field_name == "manufacture_year" %}min="2001" max="2099"{% endif %} value="{{ '' if current_value is none else current_value }}" {% if must_fill %}required{% endif %}>
           {% elif 'DECIMAL' in col.type or 'FLOAT' in col.type or 'DOUBLE' in col.type %}
-            <input id="{{ col.name }}" name="{{ col.name }}" type="number" step="any" {% if table == "VEHICLE" and field_name == "mileage" %}min="0" placeholder="Not provided"{% endif %} value="{{ '' if current_value is none or (table == "VEHICLE" and field_name == "mileage" and current_value|string == "0.00") else current_value }}" {% if col.notnull and not (table == "VEHICLE" and field_name == "mileage") %}required{% endif %}>
+            <input id="{{ col.name }}" name="{{ col.name }}" type="number" step="any" {% if table == "VEHICLE" and field_name == "mileage" %}min="0" placeholder="Not provided"{% endif %} value="{{ '' if current_value is none or (table == "VEHICLE" and field_name == "mileage" and current_value|string == "0.00") else current_value }}" {% if must_fill and not (table == "VEHICLE" and field_name == "mileage") %}required{% endif %}>
           {% elif field_name in ['notes', 'address', 'description', 'comments', 'details', 'specialization'] %}
             <textarea id="{{ col.name }}" name="{{ col.name }}" rows="3" {% if col.notnull %}required{% endif %}>{{ current_value or '' }}</textarea>
           {% else %}
