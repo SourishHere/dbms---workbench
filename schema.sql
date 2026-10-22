@@ -328,16 +328,7 @@ INSERT INTO FEEDBACK (Feedback_ID, Service_ID, Customer_ID, Rating, Comments, Fe
 (1409, 809, 109, 5, 'Transmission works well', '2026-10-10'),
 (1410, 810, 110, 4, 'Electrical issue fixed', '2026-10-10');
 
-
--- WEBSITE MANAGED VIEWS START
--- View definitions are synchronized from INFORMATION_SCHEMA.VIEWS by the website.
-CREATE OR REPLACE VIEW `CustomerVehicleAppointment` AS
-SELECT c.Customer_ID,c.Customer_Name,c.Phone,c.Email,v.Vehicle_ID,v.Registration_No,vm.Brand,vm.Model_Name,a.Appointment_ID,a.Appointment_Date,a.Status
-FROM CUSTOMER c
-JOIN VEHICLE v ON c.Customer_ID=v.Customer_ID
-JOIN VEHICLE_MODEL vm ON v.Model_ID=vm.Model_ID
-LEFT JOIN APPOINTMENT a ON v.Vehicle_ID=a.Vehicle_ID;
--- WEBSITE MANAGED VIEWS END
+CREATE OR REPLACE VIEW CustomerVehicleAppointment AS SELECT c.Customer_ID,c.Customer_Name,c.Phone,c.Email,v.Vehicle_ID,v.Registration_No,vm.Brand,vm.Model_Name,a.Appointment_ID,a.Appointment_Date,a.Status FROM CUSTOMER c JOIN VEHICLE v ON c.Customer_ID=v.Customer_ID JOIN VEHICLE_MODEL vm ON v.Model_ID=vm.Model_ID LEFT JOIN APPOINTMENT a ON v.Vehicle_ID=a.Vehicle_ID;
 
 -- ============================================================
 -- SQL QUERY LIBRARY
