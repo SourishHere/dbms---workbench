@@ -608,6 +608,45 @@ def delete_table(table):
     return redirect(url_for("tables_page"))
 
 
+
+def safe_view_select(raw_sql):
+    query = raw_sql.strip()
+    if query.endswith(";"):
+        query = query[:-1].rstrip()
+    if not query or ";" in query or not re.match(r"^(SELECT|WITH)\\b", query, re.IGNORECASE):
+        raise ValueError("Enter one SELECT query only; multiple statements and non-SELECT SQL are not allowed.")
+    blocked = r"\\b(INTO\\s+(OUTFILE|DUMPFILE)|FOR\\s+UPDATE|LOCK\\s+IN\\s+SHARE\\s+MODE|LOAD_FILE\\s*\\(|SLEEP\\s*\\(|BENCHMARK\\s*\\()"
+    if re.search(blocked, query, re.IGNORECASE):
+        raise ValueError("This query contains an operation that is not allowed in a view.")
+    return query
+
+def sync_views_in_schema(conn):
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT TABLE_NAME, VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA=%s ORDER BY TABLE_NAME", (DB_NAME,))
+    rows = cur.fetchall()
+    cur.close()
+    start = "-- WEBSITE MANAGED VIEWS START"
+    end = "-- WEBSITE MANAGED VIEWS END"
+    lines = [start, "-- View definitions currently present in the connected MySQL database."]
+    for row in rows:
+        definition = (row.get("VIEW_DEFINITION") or "").strip().rstrip(";")
+        if definition:
+            lines.extend(["", "CREATE OR REPLACE VIEW " + qi(row["TABLE_NAME"]) + " AS", definition + ";"])
+    lines.extend(["", end])
+    block = "\n".join(lines)
+    path = os.path.join(app.root_path, "schema.sql")
+    with open(path, "r", encoding="utf-8") as file:
+        content = file.read()
+    pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
+    if pattern.search(content):
+        content = pattern.sub(lambda _: block, content, count=1)
+    else:
+        old_view = re.compile(r"\nCREATE OR REPLACE VIEW\\s+`?CustomerVehicleAppointment`?.*?;", re.IGNORECASE | re.DOTALL)
+        content = old_view.sub("", content, count=1)
+        content = content.rstrip() + "\n\n" + block + "\n"
+    with open(path, "w", encoding="utf-8") as file:
+        file.write(content)
+
 @app.route("/tables")
 def tables_page():
     with connect_db() as conn:
