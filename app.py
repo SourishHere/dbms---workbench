@@ -620,9 +620,9 @@ def safe_view_select(raw_sql):
     query = raw_sql.strip()
     if query.endswith(";"):
         query = query[:-1].rstrip()
-    if not query or ";" in query or not re.match(r"^(SELECT|WITH)\\b", query, re.IGNORECASE):
+    if not query or ";" in query or not re.match(r"^(SELECT|WITH)\b", query, re.IGNORECASE):
         raise ValueError("Enter one SELECT query only; multiple statements and non-SELECT SQL are not allowed.")
-    blocked = r"\\b(INTO\\s+(OUTFILE|DUMPFILE)|FOR\\s+UPDATE|LOCK\\s+IN\\s+SHARE\\s+MODE|LOAD_FILE\\s*\\(|SLEEP\\s*\\(|BENCHMARK\\s*\\()"
+    blocked = r"\b(INTO\s+(OUTFILE|DUMPFILE)|FOR\s+UPDATE|LOCK\s+IN\s+SHARE\s+MODE|LOAD_FILE\s*\(|SLEEP\s*\(|BENCHMARK\s*\()"
     if re.search(blocked, query, re.IGNORECASE):
         raise ValueError("This query contains an operation that is not allowed in a view.")
     return query
@@ -648,7 +648,7 @@ def sync_views_in_schema(conn):
     if pattern.search(content):
         content = pattern.sub(lambda _: block, content, count=1)
     else:
-        old_view = re.compile(r"\nCREATE OR REPLACE VIEW\\s+`?CustomerVehicleAppointment`?.*?;", re.IGNORECASE | re.DOTALL)
+        old_view = re.compile(r"\nCREATE OR REPLACE VIEW\s+`?CustomerVehicleAppointment`?.*?;", re.IGNORECASE | re.DOTALL)
         content = old_view.sub("", content, count=1)
         content = content.rstrip() + "\n\n" + block + "\n"
     with open(path, "w", encoding="utf-8") as file:
