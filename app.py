@@ -145,10 +145,12 @@ def datetime_input(value):
 
 @app.template_filter("date_only")
 def date_only(value):
+    """Display date/datetime values as dates only in every table."""
     if value is None: return value
     if isinstance(value, (date, datetime)): return value.strftime("%Y-%m-%d")
-    value = str(value)
-    if re.match(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}", value):
+    value = str(value).strip()
+    # Handle MySQL datetime strings with or without seconds/timezone suffix.
+    if len(value) >= 10 and re.match(r"^\d{4}-\d{2}-\d{2}(?:$|[ T])", value):
         return value[:10]
     return value
 
