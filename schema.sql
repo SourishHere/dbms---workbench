@@ -20,6 +20,8 @@ CREATE TABLE WARRANTY(Warranty_ID INT AUTO_INCREMENT PRIMARY KEY,Service_ID INT,
 CREATE TABLE FEEDBACK(Feedback_ID INT AUTO_INCREMENT PRIMARY KEY,Service_ID INT NOT NULL,Customer_ID INT NOT NULL,Rating TINYINT NOT NULL CHECK(Rating BETWEEN 1 AND 5),Comments VARCHAR(1000),Feedback_Date DATE NOT NULL DEFAULT (CURRENT_DATE),FOREIGN KEY(Service_ID) REFERENCES SERVICE_RECORD(Service_ID),FOREIGN KEY(Customer_ID) REFERENCES CUSTOMER(Customer_ID));
 
 -- Seed records copied from the original SQLite DBMS demo database.
+
+-- Original demo records copied from the SQLite DBMS project.
 INSERT INTO CUSTOMER (Customer_ID, Customer_Name, Phone, Email, Address) VALUES
 (101, 'Arun Kumar', '9876500001', 'arun@gmail.com', 'Vellore'),
 (102, 'Priya Sharma', '9876500002', 'priya@gmail.com', 'Chennai'),
