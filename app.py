@@ -461,7 +461,7 @@ def table_page(table):
             cols,rows=get_rows(conn,table,search,where,params,250)
         pk=primary_key(table_info(conn,table))
         fk_errors=foreign_key_issue_count(conn)
-    return render_template("table.html",table=table,label=LABELS[table],columns=[c["name"] for c in cols],rows=rows,pk=pk,search=search,filter_fields=filters,has_column_filters=any(f["lower"] or f["upper"] for f in filters),total=len(rows),fk_error_count=fk_errors)
+    return render_template("table.html",table=table,label=LABELS[table],columns=[c["name"] for c in cols],rows=rows,pk=pk,search=search,filter_fields=filters,has_column_filters=any(f["lower"] or f["upper"] for f in filters),total=len(rows),fk_error_count=fk_errors,is_custom_table=table not in BUILTIN_TABLES)
 
 def render_record_form(table,mode,record=None):
     with connect_db() as conn: cols=form_fields(conn,table)
