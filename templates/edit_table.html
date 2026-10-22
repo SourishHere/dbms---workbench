@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Edit Structure | {{ label }}{% endblock %}
+{% block heading %}Edit Table Structure{% endblock %}
+{% block content %}
+<section class="sectionhead">
+  <div>
+    <p class="eyebrow">DATABASE DESIGN</p>
+    <h2>{{ label }}</h2>
+    <p>Add columns, change supported column definitions, or remove safe-to-remove columns. Primary keys and foreign-key columns are protected.</p>
+  </div>
+  <a class="button ghost" href="{{ url_for('table_page', table=table) }}">Back to table</a>
+</section>
+
+<section class="panel schema-editor">
+  <h2>Current columns</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Nullable</th><th>Primary key</th><th>Foreign key</th></tr></thead>
+      <tbody>
+      {% for col in columns %}
+      <tr>
+        <td>{{ col.name }}</td><td>{{ col.type }}</td><td>{{ 'Yes' if not col.notnull else 'No' }}</td>
+        <td>{{ 'Yes' if col.pk else 'No' }}</td><td>{{ 'Yes' if col.name in fk_columns else 'No' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel schema-editor">
+  <h2>Add a column</h2>
+  <p class="note">For an optional foreign key, choose a referenced primary key and a delete rule. SET NULL requires the new column to allow NULL.</p>
+  <form method="post" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="add">
+    <div class="form-grid">
+      <div class="field"><label>Column name *</label><input name="column_name" pattern="[A-Za-z][A-Za-z0-9_]*" maxlength="64" required></div>
+      <div class="field"><label>Data type *</label><select name="column_type" required>{% for typ in allowed_types %}<option value="{{ typ }}">{{ typ }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Nullable?</label><select name="nullable"><option value="yes">Allow NULL</option><option value="no">NOT NULL</option></select></div>
+      <div class="field"><label>References table (optional)</label><select name="fk_table" data-fk-table><option value="">No foreign key</option>{% for option in foreign_key_options %}<option value="{{ option.table }}">{{ option.table }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Referenced primary key</label><select name="fk_column" data-fk-column><option value="">Select table first</option></select></div>
+      <div class="field"><label>On delete</label><select name="fk_action"><option value="RESTRICT">RESTRICT (block parent deletion)</option><option value="CASCADE">CASCADE (delete child rows)</option><option value="SET NULL">SET NULL (clear child reference)</option></select></div>
+    </div>
+    <div class="form-actions"><button class="button primary" type="submit">Add column</button></div>
+  </form>
+</section>
+
+<section class="panel schema-editor">
+  <h2>Modify a column</h2>
+  <p class="note">Changing a data type may fail if existing values cannot be converted. Primary-key and foreign-key columns are protected.</p>
+  <form method="post" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="modify">
+    <div class="form-grid">
+      <div class="field"><label>Column</label><select name="existing_column" required>{% for col in columns if not col.pk and col.name not in fk_columns %}<option value="{{ col.name }}">{{ col.name }} ({{ col.type }})</option>{% endfor %}</select></div>
+      <div class="field"><label>New data type</label><select name="new_type" required>{% for typ in allowed_types %}<option value="{{ typ }}">{{ typ }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Null values</label><select name="new_nullable"><option value="yes">Allow NULL</option><option value="no">NOT NULL</option></select></div>
+    </div>
+    <div class="form-actions"><button class="button primary" type="submit" onclick="return confirm('Changing a column definition can fail or affect existing data. Continue?')">Modify column</button></div>
+  </form>
+</section>
+
+<section class="panel schema-editor">
+  <h2>Remove a column</h2>
+  <p class="note">This permanently deletes that column and its values. Primary-key, foreign-key, and externally referenced columns are protected.</p>
+  <form method="post" class="record-form" onsubmit="return confirm('Permanently drop this column and all values stored in it? This cannot be undone.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="drop">
+    <div class="form-grid">
+      <div class="field"><label>Column to remove</label><select name="drop_column" required>{% for col in columns if not col.pk and col.name not in fk_columns %}<option value="{{ col.name }}">{{ col.name }} ({{ col.type }})</option>{% endfor %}</select></div>
+    </div>
+    <div class="form-actions"><button class="button danger" type="submit">Drop column</button></div>
+  </form>
+</section>
+
+<script>
+(function () {
+  const options = {{ foreign_key_options|tojson }};
+  const tableSelect = document.querySelector("[data-fk-table]");
+  const columnSelect = document.querySelector("[data-fk-column]");
+  function refresh() {
+    columnSelect.innerHTML = "";
+    const matches = options.filter((item) => item.table === tableSelect.value);
+    const first = document.createElement("option");
+    first.value = "";
+    first.textContent = tableSelect.value ? "Choose primary key" : "No foreign key";
+    columnSelect.appendChild(first);
+    matches.forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.column;
+      option.textContent = item.column + " (" + item.type + ")";
+      columnSelect.appendChild(option);
+    });
+  }
+  tableSelect.addEventListener("change", refresh);
+  refresh();
+})();
+</script>
+{% endblock %}
