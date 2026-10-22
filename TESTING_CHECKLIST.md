@@ -9,7 +9,11 @@ From the Codespaces terminal, run:
     python -m pip install -r requirements.txt
     python -m unittest discover -s tests -v
 
-The tests cover numeric/date range validation, literal partial-match behavior, combined search and column filters, invalid-range query suppression, report selection, and CSRF rejection.
+With MySQL running and the original demo sample data present, run the full live-database suite as well:
+
+    RUN_DB_INTEGRATION=1 python -m unittest discover -s tests -v
+
+The live integration suite executes every report, checks seeded-data text/numeric/date/combined filters, tests a create-edit-delete cycle, checks foreign-key and CHECK constraints, and checks /health. It creates and cleans up one temporary CUSTOMER record and does not reset the database.
 
 ## Table filter tests
 
