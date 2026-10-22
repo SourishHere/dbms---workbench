@@ -45,24 +45,24 @@
               'fuel_type': ['Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG'],
               'vehicle_type': ['Car', 'Bike', 'SUV', 'Truck', 'Van', 'Hatchback', 'Sedan', 'MUV']
             } %}
-            <select id="{{ col.name }}" name="{{ col.name }}" {% if col.notnull %}required{% endif %}>
+            <select id="{{ col.name }}" name="{{ col.name }}" {% if must_fill %}required{% endif %}>
               <option value="">Choose {{ col.name|replace('_', ' ')|lower }}</option>
               {% for choice in choices[field_name] %}
                 <option value="{{ choice }}"{% if current_value|string == choice|string %} selected{% endif %}>{{ choice }}</option>
               {% endfor %}
             </select>
           {% elif 'DATETIME' in col.type or 'TIMESTAMP' in col.type %}
-            <input id="{{ col.name }}" name="{{ col.name }}" type="datetime-local" value="{{ current_value|datetime_input }}" {% if col.notnull %}required{% endif %}>
+            <input id="{{ col.name }}" name="{{ col.name }}" type="datetime-local" value="{{ current_value|datetime_input }}" {% if must_fill %}required{% endif %}>
           {% elif 'DATE' in col.type or field_name.endswith('_date') or field_name == 'last_updated' %}
-            <input id="{{ col.name }}" name="{{ col.name }}" type="date" value="{{ current_value|date_input }}" {% if col.notnull %}required{% endif %}>
+            <input id="{{ col.name }}" name="{{ col.name }}" type="date" value="{{ current_value|date_input }}" {% if must_fill %}required{% endif %}>
           {% elif 'INT' in col.type or 'YEAR' in col.type %}
             <input id="{{ col.name }}" name="{{ col.name }}" type="number" step="1" {% if field_name == "manufacture_year" %}min="2001" max="2099"{% endif %} value="{{ '' if current_value is none else current_value }}" {% if must_fill %}required{% endif %}>
           {% elif 'DECIMAL' in col.type or 'FLOAT' in col.type or 'DOUBLE' in col.type %}
             <input id="{{ col.name }}" name="{{ col.name }}" type="number" step="any" {% if table == "VEHICLE" and field_name == "mileage" %}min="0" placeholder="Not provided"{% endif %} value="{{ '' if current_value is none or (table == "VEHICLE" and field_name == "mileage" and current_value|string == "0.00") else current_value }}" {% if must_fill and not (table == "VEHICLE" and field_name == "mileage") %}required{% endif %}>
           {% elif field_name in ['notes', 'address', 'description', 'comments', 'details', 'specialization'] %}
-            <textarea id="{{ col.name }}" name="{{ col.name }}" rows="3" {% if col.notnull %}required{% endif %}>{{ current_value or '' }}</textarea>
+            <textarea id="{{ col.name }}" name="{{ col.name }}" rows="3" {% if must_fill %}required{% endif %}>{{ current_value or '' }}</textarea>
           {% else %}
-            <input id="{{ col.name }}" name="{{ col.name }}" type="{% if field_name == 'email' %}email{% else %}text{% endif %}" value="{{ current_value or '' }}" {% if col.notnull %}required{% endif %}>
+            <input id="{{ col.name }}" name="{{ col.name }}" type="{% if field_name == 'email' %}email{% else %}text{% endif %}" value="{{ current_value or '' }}" {% if must_fill %}required{% endif %}>
           {% endif %}
 
           {% if col.default is not none %}<small>Default: {{ col.default }}</small>{% endif %}
