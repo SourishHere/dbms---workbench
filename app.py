@@ -499,7 +499,7 @@ def add_record(table):
         except (Error,ValueError) as exc:
             conn.rollback()
             app.logger.warning("Could not add record to %s: %s", table, exc)
-            flash("Could not add record. Check the entered values and database constraints.","error")
+            flash("Could not add record: " + str(exc.msg if hasattr(exc, "msg") else exc)[:220], "error")
             return render_record_form(table,"add",data)
 
 @app.route("/table/<table>/edit/<path:key>",methods=["GET","POST"])
