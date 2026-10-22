@@ -243,7 +243,7 @@ def create_table():
     raw_table = request.form.get("table_name", "").strip().upper()
     if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", raw_table):
         flash("Use a table name starting with a letter and containing only letters, numbers, and underscores (maximum 64 characters).", "error")
-        return render_template("create_table.html")
+        return render_template("create_table.html", foreign_key_options=foreign_key_options)
 
     column_names = request.form.getlist("column_name[]")
     column_types = request.form.getlist("column_type[]")
@@ -256,14 +256,14 @@ def create_table():
 
     if raw_table in TABLES:
         flash("A table with that name already exists.", "error")
-        return render_template("create_table.html")
+        return render_template("create_table.html", foreign_key_options=foreign_key_options)
     if len(column_names) < 1 or len(column_names) > 20 or len(column_names) != len(column_types) or len(fk_tables) != len(column_names) or len(fk_columns) != len(column_names):
         flash("Add between 1 and 20 columns.", "error")
-        return render_template("create_table.html")
+        return render_template("create_table.html", foreign_key_options=foreign_key_options)
     valid_indexes = {str(index) for index in range(len(column_names))}
     if not pk_indexes.issubset(valid_indexes) or not required_indexes.issubset(valid_indexes) or not auto_indexes.issubset(valid_indexes) or len(pk_indexes) != 1:
         flash("Choose exactly one valid primary-key column.", "error")
-        return render_template("create_table.html")
+        return render_template("create_table.html", foreign_key_options=foreign_key_options)
 
     fk_by_index = []
     option_lookup = {(item["table"], item["column"]): item for item in foreign_key_options}
@@ -292,16 +292,16 @@ def create_table():
         normalized = name.lower()
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", name) or normalized in seen_names:
             flash("Column names must be unique and contain only letters, numbers, and underscores.", "error")
-            return render_template("create_table.html")
+            return render_template("create_table.html", foreign_key_options=foreign_key_options)
         if raw_type not in allowed_types:
             flash("Choose a supported data type for every column.", "error")
-            return render_template("create_table.html")
+            return render_template("create_table.html", foreign_key_options=foreign_key_options)
         is_pk = str(index) in pk_indexes
         is_required = str(index) in required_indexes or is_pk
         is_auto = str(index) in auto_indexes
         if is_auto and (raw_type != "INT" or not is_pk):
             flash("AUTO_INCREMENT can only be used on an INT primary-key column.", "error")
-            return render_template("create_table.html")
+            return render_template("create_table.html", foreign_key_options=foreign_key_options)
         definition = qi(name) + " " + allowed_types[raw_type]
         if is_required:
             definition += " NOT NULL"
@@ -314,7 +314,7 @@ def create_table():
 
     if len(pk_indexes) != 1:
         flash("Choose exactly one primary-key column.", "error")
-        return render_template("create_table.html")
+        return render_template("create_table.html", foreign_key_options=foreign_key_options)
 
     for index, fk_table, fk_column in fk_by_index:
         clean_columns.append(
@@ -332,7 +332,7 @@ def create_table():
     except (Error, ValueError) as exc:
         app.logger.warning("Could not create table %s: %s", raw_table, exc)
         flash("MySQL could not create this table. Check its name and column definitions.", "error")
-        return render_template("create_table.html")
+        return render_template("create_table.html", foreign_key_options=foreign_key_options)
 
     schema_saved = False
     schema_path = os.path.join(app.root_path, "schema.sql")
