@@ -2,6 +2,7 @@ import os
 import re
 import unittest
 import uuid
+from pathlib import Path
 from unittest.mock import patch
 
 import app as project
@@ -121,8 +122,85 @@ class RouteTests(unittest.TestCase):
                 self.assertTrue(definition["sql"].lstrip().upper().startswith("SELECT"))
 
 
-@unittest.skipUnless(os.getenv("RUN_DB_INTEGRATION") == "1", "Requires the disposable MySQL integration database")
+@unittest.skipUnless(os.getenv("RUN_DB_INTEGRATION") == "1", "Requires MySQL with permission to create and drop a temporary test database")
 class DatabaseIntegrationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.original_db_name = project.DB_NAME
+        cls.test_db_name = "vehicle_service_test_" + uuid.uuid4().hex[:12]
+        config = {
+            "host": os.getenv("MYSQL_HOST", "127.0.0.1"),
+            "port": int(os.getenv("MYSQL_PORT", "3306")),
+            "user": os.getenv("MYSQL_TEST_USER", os.getenv("MYSQL_USER", "root")),
+            "password": os.getenv("MYSQL_TEST_PASSWORD", os.getenv("MYSQL_PASSWORD", "")),
+        }
+        admin = None
+        try:
+            admin = project.mysql.connector.connect(**config)
+            cursor = admin.cursor()
+            cursor.execute(
+                "CREATE DATABASE " + project.qi(cls.test_db_name)
+                + " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+            )
+            cursor.close()
+            admin.close()
+            admin = None
+
+            schema_path = Path(__file__).resolve().parents[1] / "schema.sql"
+            schema = schema_path.read_text(encoding="utf-8")
+            schema = schema.replace(
+                "CREATE DATABASE IF NOT EXISTS vehicle_service CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+                "",
+            ).replace("USE vehicle_service;", "")
+            project.DB_NAME = cls.test_db_name
+            conn = project.mysql.connector.connect(**config, database=cls.test_db_name)
+            try:
+                cursor = conn.cursor()
+                for statement in schema.split(";"):
+                    statement = statement.strip()
+                    if statement:
+                        cursor.execute(statement)
+                conn.commit()
+                cursor.close()
+            finally:
+                conn.close()
+        except Exception:
+            project.DB_NAME = cls.original_db_name
+            try:
+                if admin is not None and admin.is_connected():
+                    admin.close()
+                cleanup = project.mysql.connector.connect(**config)
+                try:
+                    cursor = cleanup.cursor()
+                    cursor.execute("DROP DATABASE IF EXISTS " + project.qi(cls.test_db_name))
+                    cursor.close()
+                finally:
+                    cleanup.close()
+            except Exception:
+                pass
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        project.DB_NAME = cls.original_db_name
+        config = {
+            "host": os.getenv("MYSQL_HOST", "127.0.0.1"),
+            "port": int(os.getenv("MYSQL_PORT", "3306")),
+            "user": os.getenv("MYSQL_TEST_USER", os.getenv("MYSQL_USER", "root")),
+            "password": os.getenv("MYSQL_TEST_PASSWORD", os.getenv("MYSQL_PASSWORD", "")),
+        }
+        try:
+            conn = project.mysql.connector.connect(**config)
+            try:
+                cursor = conn.cursor()
+                cursor.execute("DROP DATABASE IF EXISTS " + project.qi(cls.test_db_name))
+                cursor.close()
+            finally:
+                conn.close()
+        finally:
+            super().tearDownClass()
+
     def setUp(self):
         project.app.config.update(TESTING=True, SECRET_KEY="integration-test-secret")
         self.client = project.app.test_client()
