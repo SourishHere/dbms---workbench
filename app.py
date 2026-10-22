@@ -19,6 +19,7 @@ BUILTIN_TABLES = ["CUSTOMER","VEHICLE_MODEL","VEHICLE","MECHANIC","SERVICE_TYPE"
 TABLES = BUILTIN_TABLES.copy()
 LABELS = {t:t.replace("_"," ").title() for t in TABLES}
 VIEWS = ["CustomerVehicleAppointment"]
+BUILTIN_VIEWS = {"CustomerVehicleAppointment"}
 VIEW_LABELS = {name: name.replace("_", " ").title() for name in VIEWS}
 PKS = {"CUSTOMER":"Customer_ID","VEHICLE_MODEL":"Model_ID","VEHICLE":"Vehicle_ID","MECHANIC":"Mechanic_ID","SERVICE_TYPE":"Service_Type_ID","APPOINTMENT":"Appointment_ID","SERVICE_RECORD":"Service_ID","SUPPLIER":"Supplier_ID","PART":"Part_ID","SERVICE_PART":None,"INVENTORY":"Inventory_ID","INVOICE":"Invoice_ID","PAYMENT":"Payment_ID","WARRANTY":"Warranty_ID","FEEDBACK":"Feedback_ID"}
 
@@ -750,6 +751,9 @@ def edit_view(view_name):
 def delete_view(view_name):
     if view_name not in VIEWS:
         abort(404)
+    if view_name in BUILTIN_VIEWS:
+        flash("The built-in CustomerVehicleAppointment view is protected because the SQL Query report uses it. You can modify its definition or delete custom views.", "error")
+        return redirect(url_for("views_page"))
     try:
         with connect_db() as conn:
             cur = conn.cursor(dictionary=True)
