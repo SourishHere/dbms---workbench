@@ -400,13 +400,21 @@ def edit_table(table):
             "WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s AND REFERENCED_TABLE_NAME IS NOT NULL",
             (DB_NAME, table)
         )
-        fk_columns = {row["COLUMN_NAME"] for row in cur.fetchall()}
+        fk_rows = cur.fetchall()
+        fk_columns = {row["COLUMN_NAME"] for row in fk_rows}
+        fk_rules = [{
+            "column": row["COLUMN_NAME"],
+            "table": row["REFERENCED_TABLE_NAME"],
+            "referenced_column": row["REFERENCED_COLUMN_NAME"],
+            "constraint": row["CONSTRAINT_NAME"]
+        } for row in fk_rows]
         cur.close()
 
         if request.method == "GET":
             return render_template(
                 "edit_table.html", table=table, label=LABELS[table],
-                columns=columns, fk_columns=fk_columns, allowed_types=list(allowed_types), foreign_key_options=foreign_key_options
+                columns=columns, fk_columns=fk_columns, fk_rules=fk_rules,
+                allowed_types=list(allowed_types), foreign_key_options=foreign_key_options
             )
 
         action = request.form.get("action", "")
@@ -472,6 +480,24 @@ def edit_table(table):
                 return redirect(url_for("edit_table", table=table))
             definition = qi(name) + " " + allowed_types[raw_type] + (" NULL" if nullable else " NOT NULL")
             statements.append("ALTER TABLE " + qi(table) + " MODIFY COLUMN " + definition)
+        elif action == "rule":
+            name = request.form.get("fk_rule_column", "")
+            fk_action = request.form.get("fk_rule_action", "")
+            fk_rule = next((item for item in fk_rules if item["column"] == name), None)
+            current = next((col for col in columns if col["name"] == name), None)
+            if not fk_rule or not current or fk_action not in {"RESTRICT", "CASCADE", "SET NULL"}:
+                flash("Choose a valid existing foreign key and delete rule.", "error")
+                return redirect(url_for("edit_table", table=table))
+            if fk_action == "SET NULL" and current["notnull"]:
+                flash("SET NULL requires the foreign-key column to allow NULL values.", "error")
+                return redirect(url_for("edit_table", table=table))
+            constraint = qi(fk_rule["constraint"])
+            statements.append(
+                "ALTER TABLE " + qi(table) + " DROP FOREIGN KEY " + constraint +
+                ", ADD CONSTRAINT " + constraint + " FOREIGN KEY (" + qi(name) +
+                ") REFERENCES " + qi(fk_rule["table"]) + "(" + qi(fk_rule["referenced_column"]) +
+                ") ON DELETE " + fk_action
+            )
         elif action == "drop":
             name = request.form.get("drop_column", "")
             current = next((col for col in columns if col["name"] == name), None)
