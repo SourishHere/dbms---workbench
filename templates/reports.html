@@ -2,10 +2,81 @@
 {% block title %}SQL Query | Vehicle Service{% endblock %}
 {% block heading %}SQL Query{% endblock %}
 {% block content %}
-<section class="sectionhead"><div><p class="eyebrow">QUERY RESULTS</p><h2>SQL demonstration reports</h2><p>Joins, filtering, sorting, grouping, aggregates, subqueries and a view.</p></div></section>
-<div class="report-list">{% for report in reports_data %}
-<section class="report"><div class="report-head"><div><small>QUERY {{ "%02d"|format(loop.index) }}</small><h3>{{ report.title }}</h3></div>{% if report.error %}<span class="badge error">Query error</span>{% else %}<span class="badge">{{ report.rows|length }} row(s)</span>{% endif %}</div>
-<details><summary>View SQL statement</summary><pre><code>{{ report.sql }}</code></pre></details>
-{% if report.error %}<p class="error-text">{{ report.error }}</p>{% elif report.rows %}<div class="tablewrap"><table><thead><tr>{% for key in report.rows[0].keys() %}<th>{{ key }}</th>{% endfor %}</tr></thead><tbody>{% for row in report.rows %}<tr>{% for key in row.keys() %}<td>{{ (row[key]|date_only) if row[key] is not none else '—' }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% else %}<p>Query ran successfully; no rows matched.</p>{% endif %}
-</section>{% endfor %}</div>
+<section class="sectionhead">
+  <div>
+    <p class="eyebrow">QUERY WORKBENCH</p>
+    <h2>Choose a SQL report</h2>
+    <p>Select a predefined report and run it against the connected MySQL database.</p>
+  </div>
+</section>
+
+<form method="get" class="query-selector">
+  <div class="query-select-field">
+    <label for="report">SQL Query Report</label>
+    <select id="report" name="report" required>
+      <option value="">Choose a report…</option>
+      {% for option in report_options %}
+        <option value="{{ option.key }}"{% if selected_report == option.key %} selected{% endif %}>{{ option.title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="button primary" type="submit">Run Query</button>
+  {% if selected_report %}
+    <a class="button ghost" href="{{ url_for('reports') }}">Clear selection</a>
+  {% endif %}
+</form>
+
+{% if selected_report and not report_result %}
+  <p class="flash error">Choose a valid report from the dropdown, then click Run Query.</p>
+{% endif %}
+
+{% if report_result %}
+<section class="report query-result">
+  <div class="report-head">
+    <div>
+      <small>QUERY RESULT</small>
+      <h3>{{ report_result.title }}</h3>
+      <p class="muted">{{ report_result.description }}</p>
+    </div>
+    {% if report_result.error %}
+      <span class="badge error">Query error</span>
+    {% else %}
+      <span class="badge">{{ report_result.rows|length }} row(s)</span>
+    {% endif %}
+  </div>
+  <details>
+    <summary>View SQL statement</summary>
+    <pre><code>{{ report_result.sql }}</code></pre>
+  </details>
+  {% if report_result.error %}
+    <p class="error-text">{{ report_result.error }}</p>
+  {% elif report_result.rows %}
+    <div class="tablewrap">
+      <table>
+        <thead><tr>{% for column in report_result.columns %}<th>{{ column|replace('_',' ') }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in report_result.rows %}
+            <tr>{% for column in report_result.columns %}<td>{{ (row[column]|date_only) if row[column] is not none else '—' }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">The query ran successfully, but no records matched. Try another report or check the database data.</p>
+  {% endif %}
+</section>
+{% else %}
+<section class="report query-placeholder">
+  <h3>Available reports</h3>
+  <p class="muted">The selector includes operational reports and SQL concepts for your DBMS demonstration.</p>
+  <div class="report-option-grid">
+    {% for option in report_options %}
+      <article>
+        <strong>{{ option.title }}</strong>
+        <p>{{ option.description }}</p>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% endblock %}
