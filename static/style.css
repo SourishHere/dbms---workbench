@@ -26,3 +26,29 @@
 .note{margin:14px 0}
 @media(max-width:900px){.column-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.column-filter-grid,.form-grid{grid-template-columns:1fr}.bottom-links{flex-direction:column}.report-head{flex-direction:column}}
+
+/* Original DBMS filter, report and form components */
+.column-search{background:#fff;border:1px solid var(--line);border-radius:11px;padding:15px;margin:14px 0}
+.column-search summary,details summary{cursor:pointer;font-weight:700;color:var(--ink);font-size:12px}
+.column-filter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+.column-filter-field{min-width:0;display:flex;flex-direction:column;gap:7px}
+.column-filter-field label{font-size:11px;font-weight:700;color:#55516d}
+.column-filter-field input,.field textarea,.field select,.field input{width:100%;min-width:0;padding:10px;border:1px solid #e3e0ef;border-radius:8px;background:white;font:12px 'DM Sans',sans-serif}
+.range-inputs{display:flex;gap:6px}.range-inputs input{width:50%;min-width:0}
+.filter-actions,.form-actions{display:flex;gap:8px;align-items:center;margin-top:14px}
+.record-form{max-width:980px;background:white;border:1px solid var(--line);border-radius:12px;padding:22px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.field small{font-size:10px;color:var(--muted)}.field textarea{resize:vertical}
+.report-list{display:grid;gap:14px}
+.report{background:white;border:1px solid var(--line);border-radius:12px;padding:19px;min-width:0}
+.report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.report-head h3{font:800 14px Manrope,sans-serif;margin:5px 0}
+.report-head small{font-size:9px;letter-spacing:1px;color:var(--muted);font-weight:700}
+.report details{margin:12px 0}.report pre{max-height:280px;overflow:auto}
+.badge{display:inline-block;background:#f0edff;color:var(--purple);padding:5px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.badge.error,.error-text{background:#fff0f2;color:#a52845}
+.bottom-links{display:flex;gap:18px;margin-top:24px}
+.bottom-links a,.text-link{color:var(--purple);font-weight:700;text-decoration:none;font-size:12px}
+.note{margin:14px 0}
+@media(max-width:900px){.column-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.column-filter-grid,.form-grid{grid-template-columns:1fr}.bottom-links{flex-direction:column}.report-head{flex-direction:column}}
