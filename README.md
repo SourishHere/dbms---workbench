@@ -38,7 +38,7 @@ This is the MySQL Workbench / MySQL Server port of the original Flask DBMS proje
    ```
 
 5. Open http://127.0.0.1:5000.
-6. Run unit checks with `python -m unittest discover -s tests -v`. With MySQL running and the original demo sample data present, run `RUN_DB_INTEGRATION=1 python -m unittest discover -s tests -v` to also verify the report SQL, live filters, CRUD, and constraints. Integration tests create and clean up one temporary CUSTOMER row; they do not reset the database.
+6. Run unit checks with `python -m unittest discover -s tests -v`. With MySQL running and the configured MySQL account allowed to create/drop databases, run `RUN_DB_INTEGRATION=1 python -m unittest discover -s tests -v` to verify report SQL, filters, CRUD, and constraints. The integration suite creates a uniquely named temporary database from `schema.sql`, runs its tests there, and drops only that temporary database. It does not modify your `vehicle_service` database.
 
 ## Important
 - The website connects to MySQL Server. MySQL Workbench is the client used to inspect that same database.
