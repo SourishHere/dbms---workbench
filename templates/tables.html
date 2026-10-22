@@ -1,1 +1,50 @@
-{% extends "base.html" %}{% block title %}Tables | Vehicle Service{% endblock %}{% block heading %}Tables{% endblock %}{% block content %}<section class="sectionhead"><div><p class="eyebrow">DATABASE STRUCTURE</p><h2>Your relational schema</h2><p>Browse all 15 tables and inspect columns, row counts and primary keys.</p></div></section><section class="cards">{% for item in items %}<a class="card" href="{{ url_for('table_page',table=item.name) }}"><span class="mark">DB</span><span><b>{{ labels[item.name] }}</b><small>{{ item.rows }} rows · {{ item.columns }} columns{% if item.pk %} · PK: {{ item.pk }}{% else %} · Composite key{% endif %}</small></span><em>↗</em></a>{% endfor %}</section>{% endblock %}
+{% extends "base.html" %}
+{% block title %}Tables | Vehicle Service{% endblock %}
+{% block heading %}Tables{% endblock %}
+{% block content %}
+<section class="sectionhead">
+  <div>
+    <p class="eyebrow">DATABASE STRUCTURE</p>
+    <h2>Your relational schema</h2>
+    <p>Browse all 15 tables and inspect columns, row counts and primary keys.</p>
+  </div>
+</section>
+
+<section class="table-group">
+  <div class="sectionhead">
+    <div>
+      <p class="eyebrow">PARENT TABLES</p>
+      <h2>Parent Tables</h2>
+      <p>These tables provide core records referenced by other tables through foreign keys.</p>
+    </div>
+  </div>
+  <section class="cards">
+    {% for item in items if item.name in ["CUSTOMER", "VEHICLE_MODEL", "MECHANIC", "SERVICE_TYPE", "SUPPLIER"] %}
+    <a class="card" href="{{ url_for('table_page',table=item.name) }}">
+      <span class="mark">P</span>
+      <span><b>{{ labels[item.name] }}</b><small>{{ item.rows }} rows · {{ item.columns }} columns{% if item.pk %} · PK: {{ item.pk }}{% else %} · Composite key{% endif %}</small></span>
+      <em>↗</em>
+    </a>
+    {% endfor %}
+  </section>
+</section>
+
+<section class="table-group">
+  <div class="sectionhead">
+    <div>
+      <p class="eyebrow">CHILD / RELATED TABLES</p>
+      <h2>Dependent and Related Tables</h2>
+      <p>These tables reference parent records or connect multiple parts of the database.</p>
+    </div>
+  </div>
+  <section class="cards">
+    {% for item in items if item.name not in ["CUSTOMER", "VEHICLE_MODEL", "MECHANIC", "SERVICE_TYPE", "SUPPLIER"] %}
+    <a class="card" href="{{ url_for('table_page',table=item.name) }}">
+      <span class="mark">DB</span>
+      <span><b>{{ labels[item.name] }}</b><small>{{ item.rows }} rows · {{ item.columns }} columns{% if item.pk %} · PK: {{ item.pk }}{% else %} · Composite key{% endif %}</small></span>
+      <em>↗</em>
+    </a>
+    {% endfor %}
+  </section>
+</section>
+{% endblock %}
