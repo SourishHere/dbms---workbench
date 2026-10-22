@@ -11,5 +11,5 @@
 </section>
 <section class="sectionhead"><div><p class="eyebrow">DATA MANAGEMENT</p><h2>Database tables</h2><p>Search, filter, add, edit or delete records.</p></div><a class="button primary" href="{{ url_for('tables_page') }}">View all tables</a></section>
 <section class="cards">{% for name in nav_tables %}<a class="card" href="{{ url_for('table_page',table=name) }}"><span class="mark">{{ name[:2] }}</span><span><b>{{ labels[name] }}</b><small>{{ counts.get(name,0) }} records</small></span><em>↗</em></a>{% endfor %}</section>
-<section class="bottom-links"><a href="{{ url_for('reports') }}">SQL Query Reports →</a><a href="{{ url_for('health') }}">Database health check →</a></section>
+
 {% endblock %}
