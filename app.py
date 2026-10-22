@@ -179,7 +179,7 @@ CUSTOM_REQUIRED = {
 
 def field_required(table, col):
     return (table.upper(), col["name"].lower()) in CUSTOM_REQUIRED or (
-        col["notnull"] and col["default"] is None and not col["pk"]
+        col["notnull"] and col["default"] is None and (not col["pk"] or not col["identity"])
     )
 
 def convert_value(raw,col):
@@ -242,6 +242,10 @@ def create_table():
         return render_template("create_table.html")
     if len(column_names) < 1 or len(column_names) > 20 or len(column_names) != len(column_types):
         flash("Add between 1 and 20 columns.", "error")
+        return render_template("create_table.html")
+    valid_indexes = {str(index) for index in range(len(column_names))}
+    if not pk_indexes.issubset(valid_indexes) or not required_indexes.issubset(valid_indexes) or not auto_indexes.issubset(valid_indexes) or len(pk_indexes) != 1:
+        flash("Choose exactly one valid primary-key column.", "error")
         return render_template("create_table.html")
 
     clean_columns = []
