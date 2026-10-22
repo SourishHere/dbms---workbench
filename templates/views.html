@@ -1,7 +1,0 @@
-{% extends "base.html" %}
-{% block title %}Database Views | Vehicle Service{% endblock %}
-{% block heading %}Database Views{% endblock %}
-{% block content %}
-<section class="sectionhead"><div><p class="eyebrow">SAVED SELECT QUERIES</p><h2>Database views</h2><p>{{ items|length }} view(s) found in the connected MySQL database. Modify a view's SQL or remove the view without deleting its source records.</p></div><a class="button primary" href="{{ url_for('create_view') }}">+ Create View</a></section>
-<section class="cards">{% for item in items %}<article class="card view-card"><a class="view-card-main" href="{{ url_for('view_page',view_name=item.name) }}"><span class="mark">V</span><span><b>{{ view_labels[item.name] }}</b><small>{{ item.rows }} rows · {{ item.columns }} columns</small></span><em>↗</em></a><div class="view-card-actions"><a href="{{ url_for('edit_view',view_name=item.name) }}">Modify SQL</a><form method="post" action="{{ url_for('delete_view',view_name=item.name) }}" onsubmit="return confirm('Delete view {{ item.name }} from MySQL? Source table data will not be deleted.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="delete" type="submit">Delete view</button></form></div></article>{% else %}<p class="empty">No views found. Create a view to save a SELECT query.</p>{% endfor %}</section>
-{% endblock %}
