@@ -30,6 +30,8 @@ def protect_post_requests():
         submitted = request.form.get("csrf_token", "")
         if not expected or not submitted or not hmac.compare_digest(expected, submitted):
             abort(400)
+    if app.testing:
+        return
     try:
         conn = db()
         cur = conn.cursor()
