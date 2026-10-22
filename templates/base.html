@@ -8,11 +8,8 @@
 <a class="navlink" href="{{ url_for('index') }}">⌂　Dashboard</a>
 <a class="navlink" href="{{ url_for('tables_page') }}">▦　All tables</a>
 <a class="navlink" href="{{ url_for('create_table') }}">＋　Create table</a>
-<a class="navlink" href="{{ url_for('views_page') }}">◫　Database views</a>
-<a class="navlink" href="{{ url_for('create_view') }}">＋　Create view</a>
 <a class="navlink" href="{{ url_for('reports') }}">▤　SQL Query</a>
 <p class="navlabel">DATABASE TABLES</p>{% for name in nav_tables %}<a class="navlink" href="{{ url_for('table_page',table=name) }}">{{ labels[name] }}</a>{% endfor %}
-{% if nav_views %}<p class="navlabel">DATABASE VIEWS</p>{% for name in nav_views %}<a class="navlink" href="{{ url_for('view_page',view_name=name) }}">{{ view_labels[name] }}</a>{% endfor %}{% endif %}
 <div class="sidebarfoot"><i></i> MySQL database</div>
 </aside>
 <main class="main"><header class="topbar"><div><p class="eyebrow">VEHICLE SERVICE SYSTEM</p><h1>{% block heading %}Dashboard{% endblock %}</h1></div><span class="pill"><i></i> MySQL</span></header>
