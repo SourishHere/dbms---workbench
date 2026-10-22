@@ -285,7 +285,8 @@ def health():
         cur.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=%s AND TABLE_TYPE='BASE TABLE'",(DB_NAME,)); tables=cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA=%s",(DB_NAME,)); views=cur.fetchone()[0]
         cur.close()
-    return {"database":DB_NAME,"backend":"mysql","table_count":tables,"view_count":views,"expected_tables":len(TABLES),"foreign_key_violations":foreign_key_issue_count(conn)}
+        fk_violations=foreign_key_issue_count(conn)
+    return {"database":DB_NAME,"backend":"mysql","table_count":tables,"view_count":views,"expected_tables":len(TABLES),"foreign_key_violations":fk_violations}
 
 @app.errorhandler(404)
 def not_found(error):
