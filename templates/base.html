@@ -4,9 +4,12 @@
 <body>
 <aside class="sidebar">
 <a class="brand" href="{{ url_for('index') }}"><span class="brandmark">VS</span><span>Vehicle Service<small>Management System</small></span></a>
-<p class="navlabel">WORKSPACE</p><a class="navlink" href="{{ url_for('index') }}">⌂　Dashboard</a><a class="navlink" href="{{ url_for('tables_page') }}">▦　All tables</a>
+<p class="navlabel">WORKSPACE</p>
+<a class="navlink" href="{{ url_for('index') }}">⌂　Dashboard</a>
+<a class="navlink" href="{{ url_for('tables_page') }}">▦　All tables</a>
+<a class="navlink" href="{{ url_for('reports') }}">▤　SQL Query</a>
+<a class="navlink" href="{{ url_for('health') }}">✓　Database health</a>
 <p class="navlabel">DATABASE TABLES</p>{% for name in nav_tables %}<a class="navlink" href="{{ url_for('table_page',table=name) }}">{{ labels[name] }}</a>{% endfor %}
-<p class="navlabel">ANALYTICS</p><a class="navlink" href="{{ url_for('reports') }}">▤　SQL Query</a><a class="navlink" href="{{ url_for('health') }}">✓　Database health</a>
 <div class="sidebarfoot"><i></i> MySQL database</div>
 </aside>
 <main class="main"><header class="topbar"><div><p class="eyebrow">VEHICLE SERVICE SYSTEM</p><h1>{% block heading %}Dashboard{% endblock %}</h1></div><span class="pill"><i></i> MySQL</span></header>
