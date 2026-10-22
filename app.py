@@ -386,6 +386,13 @@ def edit_table(table):
 
     with connect_db() as conn:
         columns = table_info(conn, table)
+        foreign_key_options = []
+        for option_table in TABLES:
+            option_columns = table_info(conn, option_table)
+            option_pk = primary_key(option_columns)
+            option_col = next((col for col in option_columns if col["name"] == option_pk), None) if option_pk else None
+            if option_col:
+                foreign_key_options.append({"table": option_table, "column": option_pk, "type": option_col["type"].upper().split("(")[0].strip()})
         cur = conn.cursor(dictionary=True)
         cur.execute(
             "SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, "
@@ -399,7 +406,7 @@ def edit_table(table):
         if request.method == "GET":
             return render_template(
                 "edit_table.html", table=table, label=LABELS[table],
-                columns=columns, fk_columns=fk_columns, allowed_types=list(allowed_types)
+                columns=columns, fk_columns=fk_columns, allowed_types=list(allowed_types), foreign_key_options=foreign_key_options
             )
 
         action = request.form.get("action", "")
