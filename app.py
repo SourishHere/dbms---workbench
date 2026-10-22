@@ -346,24 +346,202 @@ def delete_record(table,key):
             conn.rollback(); flash("Could not delete record. It may be referenced by another record. "+str(exc),"error")
     return redirect(url_for("table_page",table=table))
 
-@app.route("/reports")
+REPORTS = {
+    "vehicle_service_history": {
+        "title": "Vehicle Service History",
+        "description": "Service dates, vehicle, mechanic, service type and cost.",
+        "sql": """SELECT v.Registration_No, vm.Brand, vm.Model_Name, sr.Service_Date, sr.Completion_Date, m.Mechanic_Name, st.Service_Name, sr.Cost
+FROM SERVICE_RECORD sr
+JOIN APPOINTMENT a ON sr.Appointment_ID=a.Appointment_ID
+JOIN VEHICLE v ON a.Vehicle_ID=v.Vehicle_ID
+JOIN VEHICLE_MODEL vm ON v.Model_ID=vm.Model_ID
+JOIN MECHANIC m ON a.Mechanic_ID=m.Mechanic_ID
+JOIN SERVICE_TYPE st ON a.Service_Type_ID=st.Service_Type_ID
+ORDER BY sr.Service_Date DESC, v.Registration_No"""
+    },
+    "upcoming_appointments": {
+        "title": "Upcoming Appointments",
+        "description": "Future booked or in-progress appointments with customer and vehicle details.",
+        "sql": """SELECT a.Appointment_ID, a.Appointment_Date, a.Status, c.Customer_Name, v.Registration_No, vm.Brand, vm.Model_Name, m.Mechanic_Name, st.Service_Name
+FROM APPOINTMENT a
+JOIN VEHICLE v ON a.Vehicle_ID=v.Vehicle_ID
+JOIN CUSTOMER c ON v.Customer_ID=c.Customer_ID
+JOIN VEHICLE_MODEL vm ON v.Model_ID=vm.Model_ID
+JOIN MECHANIC m ON a.Mechanic_ID=m.Mechanic_ID
+JOIN SERVICE_TYPE st ON a.Service_Type_ID=st.Service_Type_ID
+WHERE a.Appointment_Date >= NOW() AND a.Status IN ('Booked','In Progress')
+ORDER BY a.Appointment_Date"""
+    },
+    "unpaid_invoices": {
+        "title": "Unpaid Invoices",
+        "description": "Invoices not fully paid, including the remaining balance after recorded payments.",
+        "sql": """SELECT i.Invoice_ID, i.Invoice_Date, c.Customer_Name, v.Registration_No, i.Payment_Status, i.Total_Amount,
+GREATEST(i.Total_Amount-COALESCE(p.Amount_Paid,0),0) AS Amount_Due
+FROM INVOICE i
+JOIN SERVICE_RECORD sr ON i.Service_ID=sr.Service_ID
+JOIN APPOINTMENT a ON sr.Appointment_ID=a.Appointment_ID
+JOIN VEHICLE v ON a.Vehicle_ID=v.Vehicle_ID
+JOIN CUSTOMER c ON v.Customer_ID=c.Customer_ID
+LEFT JOIN (SELECT Invoice_ID, SUM(Amount) AS Amount_Paid FROM PAYMENT GROUP BY Invoice_ID) p ON p.Invoice_ID=i.Invoice_ID
+WHERE i.Payment_Status <> 'Paid' OR GREATEST(i.Total_Amount-COALESCE(p.Amount_Paid,0),0) > 0
+ORDER BY i.Invoice_Date DESC"""
+    },
+    "mechanic_workload": {
+        "title": "Mechanic Workload",
+        "description": "Assigned appointments, completed jobs and open jobs for each mechanic.",
+        "sql": """SELECT m.Mechanic_ID, m.Mechanic_Name,
+COUNT(a.Appointment_ID) AS Assigned_Appointments,
+SUM(CASE WHEN a.Status='Completed' THEN 1 ELSE 0 END) AS Completed_Jobs,
+SUM(CASE WHEN a.Status IN ('Booked','In Progress') THEN 1 ELSE 0 END) AS Open_Jobs
+FROM MECHANIC m
+LEFT JOIN APPOINTMENT a ON a.Mechanic_ID=m.Mechanic_ID AND a.Status <> 'Cancelled'
+GROUP BY m.Mechanic_ID,m.Mechanic_Name
+ORDER BY Assigned_Appointments DESC,m.Mechanic_Name"""
+    },
+    "most_serviced_vehicles": {
+        "title": "Most-Serviced Vehicles",
+        "description": "Vehicles ranked by their number of service records.",
+        "sql": """SELECT v.Registration_No, vm.Brand, vm.Model_Name, COUNT(sr.Service_ID) AS Service_Count
+FROM VEHICLE v
+JOIN VEHICLE_MODEL vm ON v.Model_ID=vm.Model_ID
+LEFT JOIN APPOINTMENT a ON v.Vehicle_ID=a.Vehicle_ID
+LEFT JOIN SERVICE_RECORD sr ON a.Appointment_ID=sr.Appointment_ID
+GROUP BY v.Vehicle_ID,v.Registration_No,vm.Brand,vm.Model_Name
+ORDER BY Service_Count DESC,v.Registration_No"""
+    },
+    "monthly_revenue": {
+        "title": "Monthly Revenue",
+        "description": "Monthly invoiced totals and payments recorded against invoices.",
+        "sql": """SELECT DATE_FORMAT(i.Invoice_Date,'%Y-%m') AS Revenue_Month,
+SUM(i.Total_Amount) AS Total_Invoiced,
+SUM(COALESCE(p.Amount_Paid,0)) AS Total_Paid
+FROM INVOICE i
+LEFT JOIN (SELECT Invoice_ID,SUM(Amount) AS Amount_Paid FROM PAYMENT GROUP BY Invoice_ID) p ON p.Invoice_ID=i.Invoice_ID
+GROUP BY DATE_FORMAT(i.Invoice_Date,'%Y-%m')
+ORDER BY Revenue_Month DESC"""
+    },
+    "low_stock_parts": {
+        "title": "Low-Stock Parts",
+        "description": "Inventory at or below reorder level, with supplier details.",
+        "sql": """SELECT p.Part_ID,p.Part_Name,p.Category,i.Quantity_In_Stock,i.Reorder_Level,s.Supplier_Name
+FROM INVENTORY i
+JOIN PART p ON i.Part_ID=p.Part_ID
+JOIN SUPPLIER s ON p.Supplier_ID=s.Supplier_ID
+WHERE i.Quantity_In_Stock <= i.Reorder_Level
+ORDER BY i.Quantity_In_Stock ASC,p.Part_Name"""
+    },
+    "customer_service_summary": {
+        "title": "Customer Service Summary",
+        "description": "Vehicles owned, appointments attended and total invoiced spending per customer.",
+        "sql": """SELECT c.Customer_ID,c.Customer_Name,
+COALESCE(v.Vehicle_Count,0) AS Vehicles_Owned,
+COALESCE(a.Visit_Count,0) AS Total_Visits,
+COALESCE(i.Total_Spending,0) AS Total_Spending
+FROM CUSTOMER c
+LEFT JOIN (SELECT Customer_ID,COUNT(*) AS Vehicle_Count FROM VEHICLE GROUP BY Customer_ID) v ON v.Customer_ID=c.Customer_ID
+LEFT JOIN (SELECT v.Customer_ID,COUNT(a.Appointment_ID) AS Visit_Count FROM VEHICLE v LEFT JOIN APPOINTMENT a ON a.Vehicle_ID=v.Vehicle_ID GROUP BY v.Customer_ID) a ON a.Customer_ID=c.Customer_ID
+LEFT JOIN (SELECT v.Customer_ID,SUM(i.Total_Amount) AS Total_Spending FROM VEHICLE v JOIN APPOINTMENT a ON a.Vehicle_ID=v.Vehicle_ID JOIN SERVICE_RECORD sr ON sr.Appointment_ID=a.Appointment_ID JOIN INVOICE i ON i.Service_ID=sr.Service_ID GROUP BY v.Customer_ID) i ON i.Customer_ID=c.Customer_ID
+ORDER BY Total_Spending DESC,c.Customer_Name"""
+    },
+    "warranty_expiry": {
+        "title": "Warranty Expiry",
+        "description": "Expired warranties and warranties ending within the next 30 days.",
+        "sql": """SELECT w.Warranty_ID,p.Part_Name,w.Start_Date,w.End_Date,
+CASE WHEN w.End_Date < CURDATE() THEN 'Expired' ELSE 'Expires within 30 days' END AS Expiry_Status,w.Details
+FROM WARRANTY w
+LEFT JOIN PART p ON w.Part_ID=p.Part_ID
+WHERE w.End_Date <= DATE_ADD(CURDATE(),INTERVAL 30 DAY)
+ORDER BY w.End_Date"""
+    },
+    "supplier_inventory": {
+        "title": "Supplier Inventory",
+        "description": "Supplier, part, current quantity, reorder level and unit price.",
+        "sql": """SELECT s.Supplier_Name,p.Part_ID,p.Part_Name,p.Category,i.Quantity_In_Stock,i.Reorder_Level,p.Unit_Price
+FROM SUPPLIER s
+JOIN PART p ON p.Supplier_ID=s.Supplier_ID
+LEFT JOIN INVENTORY i ON i.Part_ID=p.Part_ID
+ORDER BY s.Supplier_Name,p.Part_Name"""
+    },
+    "appointment_details": {
+        "title": "Appointment Details (JOIN)",
+        "description": "Joins appointments, customers, vehicles, service types and mechanics.",
+        "sql": """SELECT a.Appointment_ID,a.Appointment_Date,a.Status,c.Customer_Name,v.Registration_No,st.Service_Name,m.Mechanic_Name
+FROM APPOINTMENT a JOIN VEHICLE v ON a.Vehicle_ID=v.Vehicle_ID
+JOIN CUSTOMER c ON v.Customer_ID=c.Customer_ID
+JOIN SERVICE_TYPE st ON a.Service_Type_ID=st.Service_Type_ID
+JOIN MECHANIC m ON a.Mechanic_ID=m.Mechanic_ID
+ORDER BY a.Appointment_Date DESC"""
+    },
+    "appointments_by_status": {
+        "title": "Completed Appointments (WHERE + ORDER BY)",
+        "description": "Demonstrates filtering and sorting.",
+        "sql": """SELECT Appointment_ID,Appointment_Date,Vehicle_ID,Status FROM APPOINTMENT WHERE Status='Completed' ORDER BY Appointment_Date DESC"""
+    },
+    "repeat_customers": {
+        "title": "Customers with More Than One Appointment (GROUP BY + HAVING)",
+        "description": "Demonstrates grouped results and HAVING.",
+        "sql": """SELECT c.Customer_ID,c.Customer_Name,COUNT(a.Appointment_ID) AS Appointment_Count
+FROM CUSTOMER c JOIN VEHICLE v ON c.Customer_ID=v.Customer_ID
+JOIN APPOINTMENT a ON v.Vehicle_ID=a.Vehicle_ID
+GROUP BY c.Customer_ID,c.Customer_Name
+HAVING COUNT(a.Appointment_ID)>1 ORDER BY Appointment_Count DESC"""
+    },
+    "service_aggregates": {
+        "title": "Service Record Aggregates (COUNT / SUM / AVG / MAX / MIN)",
+        "description": "Demonstrates aggregate functions.",
+        "sql": """SELECT COUNT(*) AS Service_Count,COALESCE(SUM(Cost),0) AS Total_Cost,COALESCE(AVG(Cost),0) AS Average_Cost,COALESCE(MAX(Cost),0) AS Highest_Cost,COALESCE(MIN(Cost),0) AS Lowest_Cost FROM SERVICE_RECORD"""
+    },
+    "above_average_mileage": {
+        "title": "Vehicles with Above-Average Mileage (Subquery)",
+        "description": "Demonstrates a subquery.",
+        "sql": """SELECT Vehicle_ID,Registration_No,Mileage FROM VEHICLE WHERE Mileage>(SELECT AVG(Mileage) FROM VEHICLE) ORDER BY Mileage DESC"""
+    },
+    "customer_vehicle_appointment": {
+        "title": "Customer-Vehicle-Appointment View",
+        "description": "Demonstrates the existing database view.",
+        "sql": """SELECT * FROM CustomerVehicleAppointment"""
+    }
+}
+
+@app.route("/reports", methods=["GET"])
 def reports():
-    definitions=[
-        ("Appointment details (JOIN)","SELECT a.Appointment_ID,a.Appointment_Date,a.Status,c.Customer_Name,v.Registration_No,st.Service_Name,m.Mechanic_Name FROM APPOINTMENT a JOIN VEHICLE v ON a.Vehicle_ID=v.Vehicle_ID JOIN CUSTOMER c ON v.Customer_ID=c.Customer_ID JOIN SERVICE_TYPE st ON a.Service_Type_ID=st.Service_Type_ID JOIN MECHANIC m ON a.Mechanic_ID=m.Mechanic_ID ORDER BY a.Appointment_Date DESC"),
-        ("Appointments by status (WHERE + ORDER BY)","SELECT Appointment_ID,Appointment_Date,Vehicle_ID,Status FROM APPOINTMENT WHERE Status='Completed' ORDER BY Appointment_Date DESC"),
-        ("Customers with more than one appointment (GROUP BY + HAVING)","SELECT c.Customer_ID,c.Customer_Name,COUNT(a.Appointment_ID) AS Appointment_Count FROM CUSTOMER c JOIN VEHICLE v ON c.Customer_ID=v.Customer_ID JOIN APPOINTMENT a ON v.Vehicle_ID=a.Vehicle_ID GROUP BY c.Customer_ID,c.Customer_Name HAVING COUNT(a.Appointment_ID)>1 ORDER BY Appointment_Count DESC"),
-        ("Service record aggregates (COUNT / SUM / AVG / MAX / MIN)","SELECT COUNT(*) AS Service_Count,COALESCE(SUM(Cost),0) AS Total_Cost,COALESCE(AVG(Cost),0) AS Average_Cost,COALESCE(MAX(Cost),0) AS Highest_Cost,COALESCE(MIN(Cost),0) AS Lowest_Cost FROM SERVICE_RECORD"),
-        ("Vehicles with above-average mileage (subquery)","SELECT Vehicle_ID,Registration_No,Mileage FROM VEHICLE WHERE Mileage>(SELECT AVG(Mileage) FROM VEHICLE) ORDER BY Mileage DESC"),
-        ("Customer-vehicle-appointment view","SELECT * FROM CustomerVehicleAppointment")
-    ]
-    results=[]
-    with connect_db() as conn:
-        for title,sql in definitions:
+    selected_key = request.args.get("report", "").strip()
+    report_result = None
+    if selected_key:
+        definition = REPORTS.get(selected_key)
+        if definition is None:
+            flash("Choose a report from the list before running a query.", "error")
+            selected_key = ""
+        else:
             try:
-                cur=conn.cursor(dictionary=True); cur.execute(sql); rows=cur.fetchall(); cur.close()
-                results.append({"title":title,"sql":sql,"rows":rows,"error":None})
-            except Error as exc: results.append({"title":title,"sql":sql,"rows":[],"error":str(exc)})
-    return render_template("reports.html",reports_data=results)
+                with connect_db() as conn:
+                    cur = conn.cursor(dictionary=True)
+                    cur.execute(definition["sql"])
+                    rows = cur.fetchall()
+                    columns = [item[0] for item in cur.description] if cur.description else []
+                    cur.close()
+                report_result = {
+                    "key": selected_key,
+                    "title": definition["title"],
+                    "description": definition["description"],
+                    "sql": definition["sql"],
+                    "rows": rows,
+                    "columns": columns,
+                    "error": None,
+                }
+            except Error:
+                app.logger.exception("SQL report failed: %s", selected_key)
+                report_result = {
+                    "key": selected_key,
+                    "title": definition["title"],
+                    "description": definition["description"],
+                    "sql": definition["sql"],
+                    "rows": [],
+                    "columns": [],
+                    "error": "This report could not be run. Check the database schema and connection, then try again.",
+                }
+    options = [{"key": key, "title": value["title"], "description": value["description"]} for key, value in REPORTS.items()]
+    return render_template("reports.html", report_options=options, selected_report=selected_key, report_result=report_result)
 
 @app.route("/health")
 def health():
