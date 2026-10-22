@@ -87,3 +87,9 @@
 .create-column-row{grid-template-columns:minmax(130px,1.2fr) minmax(130px,1fr) auto auto auto minmax(145px,1fr) minmax(145px,1fr) auto}
 @media(max-width:1200px){.create-column-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.create-column-row{grid-template-columns:1fr}}
+
+
+.table-header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.table-header-actions form{margin:0}
+.button.danger{background:#b42336;color:#fff;border:1px solid #b42336}
+.button.danger:hover{background:#8f1d2b}
