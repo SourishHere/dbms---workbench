@@ -83,7 +83,7 @@ def foreign_key_issue_count(conn):
 def get_rows(conn, table, search="", where=None, params=None, limit=250):
     cols=columns_for(conn,table); conditions=list(where or []); values=list(params or [])
     if search:
-        searchable=[c for c in cols if any(t in c["type"].upper() for t in ("CHAR","TEXT","INT","DECIMAL","FLOAT","DOUBLE","DATE","YEAR","TIME"))]
+        searchable=[c for c in cols if any(t in c["type"].upper() for t in ("CHAR","TEXT","ENUM","SET","INT","DECIMAL","FLOAT","DOUBLE","DATE","YEAR","TIME"))]
         if searchable:
             conditions.append("("+" OR ".join("CAST("+qi(c["name"])+" AS CHAR) LIKE %s" for c in searchable)+")")
             values.extend(["%"+search+"%"]*len(searchable))
@@ -112,6 +112,7 @@ CUSTOM_REQUIRED = {
     ("PAYMENT", "payment_mode"),
     ("WARRANTY", "part_id"),
     ("FEEDBACK", "rating"),
+    ("VEHICLE", "manufacture_year"),
 }
 
 def field_required(table, col):
@@ -147,7 +148,7 @@ def date_only(value):
     if value is None: return value
     if isinstance(value, (date, datetime)): return value.strftime("%Y-%m-%d")
     value = str(value)
-    if re.match(r"^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}", value):
+    if re.match(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}", value):
         return value[:10]
     return value
 
