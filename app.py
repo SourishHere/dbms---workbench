@@ -55,10 +55,12 @@ def protect_post_requests():
         TABLES = [name for name in original_order if name in found]
         TABLES.extend(sorted(found.difference(TABLES)))
         LABELS = {name: name.replace("_", " ").title() for name in TABLES}
-        cur = conn.cursor()
+        view_conn = db()
+        cur = view_conn.cursor()
         cur.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA=%s", (DB_NAME,))
         VIEWS = sorted(row[0] for row in cur.fetchall())
         cur.close()
+        view_conn.close()
         VIEW_LABELS = {name: name.replace("_", " ").title() for name in VIEWS}
     except Error:
         app.logger.exception("Could not refresh the database table list.")
