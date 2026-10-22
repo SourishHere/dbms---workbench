@@ -80,15 +80,29 @@ class RouteTests(unittest.TestCase):
         self.assertIn("LIKE %s ESCAPE '!'", args[3][0])
         self.assertEqual(args[4], ["%red!_!%%"])
 
-    def test_global_search_and_column_filter_are_combined(self):
+    def test_global_search_and_multiple_column_filters_are_combined(self):
         p1, p2, p3, p4 = self.table_patches()
         with p1, p2, p3, p4, patch.object(project, "get_rows", return_value=(self.columns, [])) as get_rows:
-            response = self.client.get("/table/VEHICLE?q=swift&filter_Color=red")
+            response = self.client.get("/table/VEHICLE?q=swift&filter_Color=red&filter_min_Mileage=10000")
         self.assertEqual(response.status_code, 200)
         args = get_rows.call_args.args
         self.assertEqual(args[2], "swift")
-        self.assertIn("LIKE %s ESCAPE '!'", args[3][0])
-        self.assertEqual(args[4], ["%red%"])
+        self.assertEqual(len(args[3]), 2)
+        self.assertIn("Mileage", args[3][0])
+        self.assertIn("LIKE %s ESCAPE '!'", args[3][1])
+        self.assertEqual(str(args[4][0]), "10000")
+        self.assertEqual(args[4][1], "%red%")
+
+    def test_date_range_is_applied_to_the_database_query(self):
+        p1, p2, p3, p4 = self.table_patches()
+        with p1, p2, p3, p4, patch.object(project, "get_rows", return_value=(self.columns, [])) as get_rows:
+            response = self.client.get("/table/VEHICLE?filter_from_Appointment_Date=2026-10-01&filter_to_Appointment_Date=2026-10-31")
+        self.assertEqual(response.status_code, 200)
+        args = get_rows.call_args.args
+        self.assertEqual(len(args[3]), 2)
+        self.assertIn("Appointment_Date", args[3][0])
+        self.assertIn("Appointment_Date", args[3][1])
+        self.assertEqual(args[4], ["2026-10-01", "2026-10-31 23:59:59"])
 
     def test_report_selector_loads_without_running_a_query(self):
         response = self.client.get("/reports")
