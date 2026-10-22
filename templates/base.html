@@ -8,7 +8,6 @@
 <a class="navlink" href="{{ url_for('index') }}">⌂　Dashboard</a>
 <a class="navlink" href="{{ url_for('tables_page') }}">▦　All tables</a>
 <a class="navlink" href="{{ url_for('reports') }}">▤　SQL Query</a>
-<a class="navlink" href="{{ url_for('health') }}">✓　Database health</a>
 <p class="navlabel">DATABASE TABLES</p>{% for name in nav_tables %}<a class="navlink" href="{{ url_for('table_page',table=name) }}">{{ labels[name] }}</a>{% endfor %}
 <div class="sidebarfoot"><i></i> MySQL database</div>
 </aside>
