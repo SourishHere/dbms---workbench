@@ -105,6 +105,20 @@ def form_fields(conn, table):
     cur.close()
     return cols
 
+CUSTOM_REQUIRED = {
+    ("MECHANIC", "specialization"),
+    ("INVOICE", "total_amount"),
+    ("INVOICE", "payment_status"),
+    ("PAYMENT", "payment_mode"),
+    ("WARRANTY", "part_id"),
+    ("FEEDBACK", "rating"),
+}
+
+def field_required(table, col):
+    return (table.upper(), col["name"].lower()) in CUSTOM_REQUIRED or (
+        col["notnull"] and col["default"] is None and not col["pk"]
+    )
+
 def convert_value(raw,col):
     if raw=="": return None
     typ=col["type"].upper(); name=col["name"].lower()
@@ -211,11 +225,20 @@ def add_record(table):
         for col in cols:
             name=col["name"]; raw=request.form.get(name,"").strip()
             if col["identity"] and not raw: continue
-            if not raw and col["default"] is not None: continue
-            if not raw and not col["notnull"]: data[name]=None
+            if not raw and col["default"] is not None and not field_required(table,col): continue
+            if not raw and not field_required(table,col): data[name]=None
             elif not raw:
-                flash(name+" is required.","error"); return render_record_form(table,"add",request.form)
-            else: data[name]=convert_value(raw,col)
+                flash(name.replace("_"," ").title()+" is required.","error"); return render_record_form(table,"add",request.form)
+            else:
+                try:
+                    value=convert_value(raw,col)
+                    if table=="VEHICLE" and name.lower()=="manufacture_year" and int(value)<=2000:
+                        raise ValueError("Manufacture year must be later than 2000.")
+                    if table=="FEEDBACK" and name.lower()=="rating" and int(value) not in (1,2,3,4,5):
+                        raise ValueError("Rating must be 1, 2, 3, 4, or 5.")
+                    data[name]=value
+                except (ValueError,InvalidOperation) as exc:
+                    flash(str(exc),"error"); return render_record_form(table,"add",request.form)
         if not data:
             flash("Please enter values for the record.","error"); return render_record_form(table,"add")
         try:
@@ -240,11 +263,20 @@ def edit_record(table,key):
             name=col["name"]
             if name==pk: continue
             raw=request.form.get(name,"").strip()
-            if not raw and col["default"] is not None: continue
-            if not raw and not col["notnull"]: data[name]=None
+            if not raw and col["default"] is not None and not field_required(table,col): continue
+            if not raw and not field_required(table,col): data[name]=None
             elif not raw:
-                flash(name+" is required.","error"); return render_record_form(table,"edit",{**record,**request.form})
-            else: data[name]=convert_value(raw,col)
+                flash(name.replace("_"," ").title()+" is required.","error"); return render_record_form(table,"edit",{**record,**request.form})
+            else:
+                try:
+                    value=convert_value(raw,col)
+                    if table=="VEHICLE" and name.lower()=="manufacture_year" and int(value)<=2000:
+                        raise ValueError("Manufacture year must be later than 2000.")
+                    if table=="FEEDBACK" and name.lower()=="rating" and int(value) not in (1,2,3,4,5):
+                        raise ValueError("Rating must be 1, 2, 3, 4, or 5.")
+                    data[name]=value
+                except (ValueError,InvalidOperation) as exc:
+                    flash(str(exc),"error"); return render_record_form(table,"edit",{**record,**request.form})
         try:
             if data:
                 sql="UPDATE "+qi(table)+" SET "+",".join(qi(n)+"=%s" for n in data)+" WHERE "+qi(pk)+"=%s"
