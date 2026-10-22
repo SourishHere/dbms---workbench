@@ -93,3 +93,12 @@
 .table-header-actions form{margin:0}
 .button.danger{background:#b42336;color:#fff;border:1px solid #b42336}
 .button.danger:hover{background:#8f1d2b}
+
+
+/* Table structure editor */
+.schema-editor{margin:16px 0;max-width:1100px}
+.schema-editor h2{margin:0 0 12px;font:800 16px Manrope,sans-serif}
+.schema-editor .record-form{max-width:none;padding:0;border:0}
+.schema-editor .tablewrap{margin:12px 0}
+.schema-editor .form-actions{justify-content:flex-start}
+.schema-editor .note{line-height:1.6}
