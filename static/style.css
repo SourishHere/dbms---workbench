@@ -102,19 +102,3 @@
 .schema-editor .tablewrap{margin:12px 0}
 .schema-editor .form-actions{justify-content:flex-start}
 .schema-editor .note{line-height:1.6}
-
-
-/* Database view management */
-.view-card{display:flex;flex-direction:column;gap:10px}
-.view-card-main{display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none}
-.view-card-main>span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:5px;min-width:0}
-.view-card-main small{color:var(--muted,#77718d);font-size:11px}
-.view-card-actions{display:flex;align-items:center;justify-content:flex-end;gap:14px;border-top:1px solid var(--line);padding-top:10px;font-size:12px}
-.view-card-actions form{margin:0}
-.view-card-actions a{font-weight:700;color:var(--purple,#6d4aff);text-decoration:none}
-.view-card-actions .delete{font-size:12px}
-.view-editor-form{max-width:1000px}
-.view-editor-form textarea{width:100%;min-height:280px;resize:vertical;font:13px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:4}
-.view-editor-form .field small{display:block;margin-top:7px;color:var(--muted,#77718d);font-size:11px}
-.view-editor-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
-@media(max-width:650px){.view-card-actions{justify-content:flex-start;flex-wrap:wrap}.view-editor-form textarea{min-height:220px}}
