@@ -53,6 +53,33 @@ def primary_key(cols):
 def count_rows(conn, table):
     cur=conn.cursor(); cur.execute("SELECT COUNT(*) FROM "+qi(table)); n=cur.fetchone()[0]; cur.close(); return n
 
+def foreign_key_issue_count(conn):
+    checks = [
+        ("VEHICLE","Customer_ID","CUSTOMER","Customer_ID"),
+        ("VEHICLE","Model_ID","VEHICLE_MODEL","Model_ID"),
+        ("APPOINTMENT","Vehicle_ID","VEHICLE","Vehicle_ID"),
+        ("APPOINTMENT","Mechanic_ID","MECHANIC","Mechanic_ID"),
+        ("APPOINTMENT","Service_Type_ID","SERVICE_TYPE","Service_Type_ID"),
+        ("SERVICE_RECORD","Appointment_ID","APPOINTMENT","Appointment_ID"),
+        ("PART","Supplier_ID","SUPPLIER","Supplier_ID"),
+        ("SERVICE_PART","Service_ID","SERVICE_RECORD","Service_ID"),
+        ("SERVICE_PART","Part_ID","PART","Part_ID"),
+        ("INVENTORY","Part_ID","PART","Part_ID"),
+        ("INVOICE","Service_ID","SERVICE_RECORD","Service_ID"),
+        ("PAYMENT","Invoice_ID","INVOICE","Invoice_ID"),
+        ("WARRANTY","Service_ID","SERVICE_RECORD","Service_ID"),
+        ("WARRANTY","Part_ID","PART","Part_ID"),
+        ("FEEDBACK","Service_ID","SERVICE_RECORD","Service_ID"),
+        ("FEEDBACK","Customer_ID","CUSTOMER","Customer_ID")
+    ]
+    cur=conn.cursor()
+    total=0
+    for child, child_col, parent, parent_col in checks:
+        cur.execute("SELECT COUNT(*) FROM "+qi(child)+" c LEFT JOIN "+qi(parent)+" p ON c."+qi(child_col)+"=p."+qi(parent_col)+" WHERE c."+qi(child_col)+" IS NOT NULL AND p."+qi(parent_col)+" IS NULL")
+        total += cur.fetchone()[0]
+    cur.close()
+    return total
+
 def get_rows(conn, table, search="", where=None, params=None, limit=250):
     cols=columns_for(conn,table); conditions=list(where or []); values=list(params or [])
     if search:
@@ -160,7 +187,8 @@ def table_page(table):
             elif low: where.append("CAST("+qi(name)+" AS CHAR) LIKE %s"); params.append("%"+low+"%")
         cols,rows=get_rows(conn,table,search,where,params,250)
         pk=primary_key(table_info(conn,table))
-    return render_template("table.html",table=table,label=LABELS[table],columns=[c["name"] for c in cols],rows=rows,pk=pk,search=search,filter_fields=filters,has_column_filters=any(f["lower"] or f["upper"] for f in filters),total=len(rows),fk_error_count=0)
+        fk_errors=foreign_key_issue_count(conn)
+    return render_template("table.html",table=table,label=LABELS[table],columns=[c["name"] for c in cols],rows=rows,pk=pk,search=search,filter_fields=filters,has_column_filters=any(f["lower"] or f["upper"] for f in filters),total=len(rows),fk_error_count=fk_errors)
 
 def render_record_form(table,mode,record=None):
     with connect_db() as conn: cols=form_fields(conn,table)
@@ -257,7 +285,7 @@ def health():
         cur.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=%s AND TABLE_TYPE='BASE TABLE'",(DB_NAME,)); tables=cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA=%s",(DB_NAME,)); views=cur.fetchone()[0]
         cur.close()
-    return {"database":DB_NAME,"backend":"mysql","table_count":tables,"view_count":views,"expected_tables":len(TABLES)}
+    return {"database":DB_NAME,"backend":"mysql","table_count":tables,"view_count":views,"expected_tables":len(TABLES),"foreign_key_violations":foreign_key_issue_count(conn)}
 
 @app.errorhandler(404)
 def not_found(error):
