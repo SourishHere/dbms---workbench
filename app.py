@@ -715,7 +715,10 @@ def delete_record(table,key):
         except Error as exc:
             conn.rollback()
             app.logger.warning("Could not delete record from %s: %s", table, exc)
-            flash("Could not delete record. It may be referenced by another record or violate a database constraint.","error")
+            if getattr(exc, "errno", None) == 1451:
+                flash("Cannot delete this record because another table references it. This foreign key uses RESTRICT/NO ACTION; delete or reassign dependent records first.", "error")
+            else:
+                flash("Could not delete record: " + str(exc.msg if hasattr(exc, "msg") else exc)[:180], "error")
     return redirect(url_for("table_page",table=table))
 
 REPORTS = {
