@@ -18,6 +18,8 @@ DB_NAME = os.getenv("MYSQL_DATABASE", "vehicle_service")
 BUILTIN_TABLES = ["CUSTOMER","VEHICLE_MODEL","VEHICLE","MECHANIC","SERVICE_TYPE","APPOINTMENT","SERVICE_RECORD","SUPPLIER","PART","SERVICE_PART","INVENTORY","INVOICE","PAYMENT","WARRANTY","FEEDBACK"]
 TABLES = BUILTIN_TABLES.copy()
 LABELS = {t:t.replace("_"," ").title() for t in TABLES}
+VIEWS = ["CustomerVehicleAppointment"]
+VIEW_LABELS = {name: name.replace("_", " ").title() for name in VIEWS}
 PKS = {"CUSTOMER":"Customer_ID","VEHICLE_MODEL":"Model_ID","VEHICLE":"Vehicle_ID","MECHANIC":"Mechanic_ID","SERVICE_TYPE":"Service_Type_ID","APPOINTMENT":"Appointment_ID","SERVICE_RECORD":"Service_ID","SUPPLIER":"Supplier_ID","PART":"Part_ID","SERVICE_PART":None,"INVENTORY":"Inventory_ID","INVOICE":"Invoice_ID","PAYMENT":"Payment_ID","WARRANTY":"Warranty_ID","FEEDBACK":"Feedback_ID"}
 
 def db():
@@ -25,7 +27,7 @@ def db():
 
 @app.before_request
 def protect_post_requests():
-    global TABLES, LABELS
+    global TABLES, LABELS, VIEWS, VIEW_LABELS
     if request.method == "POST":
         expected = session.get("_csrf_token")
         submitted = request.form.get("csrf_token", "")
@@ -53,6 +55,11 @@ def protect_post_requests():
         TABLES = [name for name in original_order if name in found]
         TABLES.extend(sorted(found.difference(TABLES)))
         LABELS = {name: name.replace("_", " ").title() for name in TABLES}
+        cur = conn.cursor()
+        cur.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA=%s", (DB_NAME,))
+        VIEWS = sorted(row[0] for row in cur.fetchall())
+        cur.close()
+        VIEW_LABELS = {name: name.replace("_", " ").title() for name in VIEWS}
     except Error:
         app.logger.exception("Could not refresh the database table list.")
 
@@ -221,7 +228,7 @@ def date_only(value):
 
 @app.context_processor
 def inject_navigation():
-    return {"nav_tables":TABLES,"labels":LABELS,"db_backend":"MySQL"}
+    return {"nav_tables":TABLES,"labels":LABELS,"nav_views":VIEWS,"view_labels":VIEW_LABELS,"db_backend":"MySQL"}
 
 @app.route("/create-table",methods=["GET","POST"])
 def create_table():
