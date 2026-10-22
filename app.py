@@ -609,6 +609,13 @@ def delete_table(table):
 
 
 
+def view_columns(conn, view_name):
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT COLUMN_NAME AS name, COLUMN_TYPE AS type FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s ORDER BY ORDINAL_POSITION", (DB_NAME, view_name))
+    rows = cur.fetchall()
+    cur.close()
+    return rows
+
 def safe_view_select(raw_sql):
     query = raw_sql.strip()
     if query.endswith(";"):
@@ -647,13 +654,130 @@ def sync_views_in_schema(conn):
     with open(path, "w", encoding="utf-8") as file:
         file.write(content)
 
+
+@app.route("/views")
+def views_page():
+    with connect_db() as conn:
+        items = []
+        for name in VIEWS:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s", (DB_NAME, name))
+            column_count = cur.fetchone()[0]
+            cur.close()
+            items.append({"name": name, "columns": column_count, "rows": count_rows(conn, name)})
+    return render_template("views.html", items=items)
+
+@app.route("/view/<view_name>")
+def view_page(view_name):
+    if view_name not in VIEWS:
+        abort(404)
+    search = request.args.get("q", "").strip()
+    with connect_db() as conn:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT COLUMN_NAME AS name, COLUMN_TYPE AS type FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s ORDER BY ORDINAL_POSITION", (DB_NAME, view_name))
+        columns = cur.fetchall()
+        sql = "SELECT * FROM " + qi(view_name)
+        params = []
+        if search and columns:
+            searchable = [col for col in columns if any(t in col["type"].upper() for t in ("CHAR", "TEXT", "ENUM", "INT", "DECIMAL", "DATE", "YEAR"))]
+            if searchable:
+                sql += " WHERE " + " OR ".join("CAST(" + qi(col["name"]) + " AS CHAR) LIKE %s" for col in searchable)
+                params = ["%" + search + "%"] * len(searchable)
+        sql += " LIMIT 250"
+        cur.execute(sql, tuple(params))
+        rows = cur.fetchall()
+        cur.close()
+    return render_template("view.html", view_name=view_name, label=VIEW_LABELS.get(view_name, view_name), columns=[c["name"] for c in columns], rows=rows, search=search)
+
+@app.route("/views/create", methods=["GET", "POST"])
+def create_view():
+    if request.method == "GET":
+        return render_template("view_editor.html", mode="create", view_name="", query="")
+    name = request.form.get("view_name", "").strip()
+    raw_query = request.form.get("view_query", "")
+    try:
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", name):
+            raise ValueError("Use a valid view name (letters, numbers and underscores; start with a letter).")
+        if name in VIEWS or name in TABLES:
+            raise ValueError("A table or view with that name already exists.")
+        query = safe_view_select(raw_query)
+        with connect_db() as conn:
+            cur = conn.cursor()
+            cur.execute("CREATE VIEW " + qi(name) + " AS " + query)
+            conn.commit()
+            cur.close()
+            sync_views_in_schema(conn)
+        flash("View created in MySQL and schema.sql view definitions were updated.", "success")
+        return redirect(url_for("views_page"))
+    except (ValueError, Error, OSError) as exc:
+        app.logger.warning("Could not create view: %s", exc)
+        flash("Could not create view: " + str(getattr(exc, "msg", exc))[:220], "error")
+        return render_template("view_editor.html", mode="create", view_name=name, query=raw_query)
+
+@app.route("/views/<view_name>/edit", methods=["GET", "POST"])
+def edit_view(view_name):
+    if view_name not in VIEWS:
+        abort(404)
+    with connect_db() as conn:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s", (DB_NAME, view_name))
+        row = cur.fetchone()
+        cur.close()
+    if not row:
+        abort(404)
+    current_query = (row["VIEW_DEFINITION"] or "").strip().rstrip(";")
+    if request.method == "GET":
+        return render_template("view_editor.html", mode="edit", view_name=view_name, query=current_query)
+    raw_query = request.form.get("view_query", "")
+    try:
+        query = safe_view_select(raw_query)
+        with connect_db() as conn:
+            cur = conn.cursor()
+            cur.execute("CREATE OR REPLACE VIEW " + qi(view_name) + " AS " + query)
+            conn.commit()
+            cur.close()
+            sync_views_in_schema(conn)
+        flash("View modified in MySQL and schema.sql view definitions were updated.", "success")
+        return redirect(url_for("views_page"))
+    except (ValueError, Error, OSError) as exc:
+        app.logger.warning("Could not modify view %s: %s", view_name, exc)
+        flash("Could not modify view: " + str(getattr(exc, "msg", exc))[:220], "error")
+        return render_template("view_editor.html", mode="edit", view_name=view_name, query=raw_query)
+
+@app.route("/views/<view_name>/delete", methods=["POST"])
+def delete_view(view_name):
+    if view_name not in VIEWS:
+        abort(404)
+    try:
+        with connect_db() as conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT TABLE_NAME, VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA=%s", (DB_NAME,))
+            other_views = [r for r in cur.fetchall() if r["TABLE_NAME"] != view_name]
+            cur.close()
+            dependents = [r["TABLE_NAME"] for r in other_views if re.search(r"(?<![A-Za-z0-9_])" + re.escape(view_name) + r"(?![A-Za-z0-9_])", r["VIEW_DEFINITION"] or "", re.IGNORECASE)]
+            if dependents:
+                flash("Cannot delete this view because these views may depend on it: " + ", ".join(dependents) + ".", "error")
+                return redirect(url_for("views_page"))
+            cur = conn.cursor()
+            cur.execute("DROP VIEW " + qi(view_name))
+            conn.commit()
+            cur.close()
+            sync_views_in_schema(conn)
+        flash("View deleted from MySQL and removed from the current view definitions in schema.sql.", "success")
+    except (Error, OSError) as exc:
+        app.logger.warning("Could not delete view %s: %s", view_name, exc)
+        flash("Could not delete view: " + str(getattr(exc, "msg", exc))[:220], "error")
+    return redirect(url_for("views_page"))
+
 @app.route("/tables")
 def tables_page():
     with connect_db() as conn:
         items=[]
         for t in TABLES:
             cols=table_info(conn,t); items.append({"name":t,"columns":len(cols),"rows":count_rows(conn,t),"pk":primary_key(cols)})
-    return render_template("tables.html",items=items)
+    with connect_db() as conn:
+        view_items = [{"name": name, "columns": len(view_columns(conn, name)), "rows": count_rows(conn, name)} for name in VIEWS]
+    return render_template("tables.html",items=items,view_items=view_items)
 
 @app.route("/table/<table>")
 def table_page(table):
