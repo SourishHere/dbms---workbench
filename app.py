@@ -148,9 +148,15 @@ def table_page(table):
                 if high: where.append("CAST("+qi(name)+" AS CHAR)<=%s"); params.append(high+(" 23:59:59" if "DATETIME" in typ and len(high)==10 else ""))
             elif kind=="number":
                 try:
-                    if low: where.append(qi(name)+">=%s"); params.append(Decimal(low))
-                    if high: where.append(qi(name)+"<=%s"); params.append(Decimal(high))
-                except InvalidOperation: flash("Invalid numeric range for "+name+".","error")
+                    low_number=Decimal(low) if low else None
+                    high_number=Decimal(high) if high else None
+                except InvalidOperation:
+                    flash("Invalid numeric range for "+name+".","error")
+                    continue
+                if low_number is not None:
+                    where.append(qi(name)+">=%s"); params.append(low_number)
+                if high_number is not None:
+                    where.append(qi(name)+"<=%s"); params.append(high_number)
             elif low: where.append("CAST("+qi(name)+" AS CHAR) LIKE %s"); params.append("%"+low+"%")
         cols,rows=get_rows(conn,table,search,where,params,250)
         pk=primary_key(table_info(conn,table))
