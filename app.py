@@ -224,8 +224,21 @@ def inject_navigation():
 
 @app.route("/create-table",methods=["GET","POST"])
 def create_table():
+    foreign_key_options = []
+    with connect_db() as option_conn:
+        for option_table in TABLES:
+            option_columns = table_info(option_conn, option_table)
+            option_pk = primary_key(option_columns)
+            if option_pk:
+                option_col = next((col for col in option_columns if col["name"] == option_pk), None)
+                if option_col:
+                    foreign_key_options.append({
+                        "table": option_table,
+                        "column": option_pk,
+                        "type": option_col["type"].upper().split("(")[0].strip()
+                    })
     if request.method == "GET":
-        return render_template("create_table.html")
+        return render_template("create_table.html", foreign_key_options=foreign_key_options)
 
     raw_table = request.form.get("table_name", "").strip().upper()
     if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", raw_table):
@@ -237,12 +250,14 @@ def create_table():
     pk_indexes = set(request.form.getlist("column_pk[]"))
     required_indexes = set(request.form.getlist("column_required[]"))
     auto_indexes = set(request.form.getlist("column_auto[]"))
+    fk_tables = request.form.getlist("column_fk_table[]")
+    fk_columns = request.form.getlist("column_fk_column[]")
     allowed_types = {"INT": "INT", "VARCHAR(255)": "VARCHAR(255)", "TEXT": "TEXT", "DECIMAL(10,2)": "DECIMAL(10,2)", "DATE": "DATE", "DATETIME": "DATETIME", "BOOLEAN": "BOOLEAN"}
 
     if raw_table in TABLES:
         flash("A table with that name already exists.", "error")
         return render_template("create_table.html")
-    if len(column_names) < 1 or len(column_names) > 20 or len(column_names) != len(column_types):
+    if len(column_names) < 1 or len(column_names) > 20 or len(column_names) != len(column_types) or len(fk_tables) != len(column_names) or len(fk_columns) != len(column_names):
         flash("Add between 1 and 20 columns.", "error")
         return render_template("create_table.html")
     valid_indexes = {str(index) for index in range(len(column_names))}
@@ -250,6 +265,26 @@ def create_table():
         flash("Choose exactly one valid primary-key column.", "error")
         return render_template("create_table.html")
 
+    fk_by_index = []
+    option_lookup = {(item["table"], item["column"]): item for item in foreign_key_options}
+    for index, (fk_table, fk_column) in enumerate(zip(fk_tables, fk_columns)):
+        if bool(fk_table) != bool(fk_column):
+            flash("Choose both a referenced table and column for each foreign key.", "error")
+            return render_template("create_table.html", foreign_key_options=foreign_key_options)
+        if fk_table:
+            target = option_lookup.get((fk_table, fk_column))
+            if not target or fk_table not in TABLES:
+                flash("Choose an existing table and its primary-key column for the foreign key.", "error")
+                return render_template("create_table.html", foreign_key_options=foreign_key_options)
+            if column_types[index] not in allowed_types:
+                flash("Choose a supported data type for every column.", "error")
+                return render_template("create_table.html", foreign_key_options=foreign_key_options)
+            source_family = allowed_types[column_types[index]].split("(")[0].upper()
+            target_family = target["type"].split("(")[0].upper()
+            if source_family != target_family:
+                flash("The foreign-key column must use a compatible data type with the referenced primary key.", "error")
+                return render_template("create_table.html", foreign_key_options=foreign_key_options)
+            fk_by_index.append((index, fk_table, fk_column))
     clean_columns = []
     seen_names = set()
     for index, (raw_name, raw_type) in enumerate(zip(column_names, column_types)):
@@ -280,6 +315,12 @@ def create_table():
     if len(pk_indexes) != 1:
         flash("Choose exactly one primary-key column.", "error")
         return render_template("create_table.html")
+
+    for index, fk_table, fk_column in fk_by_index:
+        clean_columns.append(
+            "FOREIGN KEY (" + qi(column_names[index].strip()) + ") REFERENCES "
+            + qi(fk_table) + "(" + qi(fk_column) + ")"
+        )
 
     statement = "CREATE TABLE " + qi(raw_table) + " (\n    " + ",\n    ".join(clean_columns) + "\n);"
     try:
