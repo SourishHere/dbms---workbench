@@ -1,16 +1,18 @@
 import os
 import re
+import hmac
+import secrets
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from contextlib import contextmanager
 import mysql.connector
 from mysql.connector import Error
-from flask import Flask, abort, flash, redirect, render_template, request, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "local-dev-key-change-me")
+app.secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
 DB_NAME = os.getenv("MYSQL_DATABASE", "vehicle_service")
 TABLES = ["CUSTOMER","VEHICLE_MODEL","VEHICLE","MECHANIC","SERVICE_TYPE","APPOINTMENT","SERVICE_RECORD","SUPPLIER","PART","SERVICE_PART","INVENTORY","INVOICE","PAYMENT","WARRANTY","FEEDBACK"]
 LABELS = {t:t.replace("_"," ").title() for t in TABLES}
@@ -18,6 +20,42 @@ PKS = {"CUSTOMER":"Customer_ID","VEHICLE_MODEL":"Model_ID","VEHICLE":"Vehicle_ID
 
 def db():
     return mysql.connector.connect(host=os.getenv("MYSQL_HOST","127.0.0.1"), port=int(os.getenv("MYSQL_PORT","3306")), user=os.getenv("MYSQL_USER","root"), password=os.getenv("MYSQL_PASSWORD",""), database=DB_NAME)
+
+@app.before_request
+def protect_post_requests():
+    if request.method == "POST":
+        expected = session.get("_csrf_token")
+        submitted = request.form.get("csrf_token", "")
+        if not expected or not submitted or not hmac.compare_digest(expected, submitted):
+            abort(400)
+
+@app.context_processor
+def inject_csrf_token():
+    def csrf_token():
+        token = session.get("_csrf_token")
+        if not token:
+            token = secrets.token_urlsafe(32)
+            session["_csrf_token"] = token
+        return token
+    return {"csrf_token": csrf_token}
+
+def escape_like(value):
+    return str(value).replace("!", "!!").replace("%", "!%").replace("_", "!_")
+
+def validate_filter_range(kind, low, high):
+    if kind == "number":
+        lower = Decimal(low) if low else None
+        upper = Decimal(high) if high else None
+        if any(value is not None and not value.is_finite() for value in (lower, upper)):
+            raise ValueError("Numeric filter values must be finite numbers.")
+    elif kind == "date":
+        lower = date.fromisoformat(low) if low else None
+        upper = date.fromisoformat(high) if high else None
+    else:
+        return True
+    if lower is not None and upper is not None and lower > upper:
+        raise ValueError("The lower filter bound cannot exceed the upper bound.")
+    return True
 
 @contextmanager
 def connect_db():
@@ -85,8 +123,8 @@ def get_rows(conn, table, search="", where=None, params=None, limit=250):
     if search:
         searchable=[c for c in cols if any(t in c["type"].upper() for t in ("CHAR","TEXT","ENUM","SET","INT","DECIMAL","FLOAT","DOUBLE","DATE","YEAR","TIME"))]
         if searchable:
-            conditions.append("("+" OR ".join("CAST("+qi(c["name"])+" AS CHAR) LIKE %s" for c in searchable)+")")
-            values.extend(["%"+search+"%"]*len(searchable))
+            conditions.append("("+" OR ".join("CAST("+qi(c["name"])+" AS CHAR) LIKE %s ESCAPE '!'" for c in searchable)+")")
+            values.extend(["%"+escape_like(search)+"%"]*len(searchable))
     sql="SELECT * FROM "+qi(table)
     if conditions: sql+=" WHERE "+" AND ".join(conditions)
     sql+=" LIMIT "+str(int(limit))
@@ -190,11 +228,13 @@ def table_page(table):
             else:
                 kind="text"; low=request.args.get("filter_"+name,"").strip(); high=""
             filters.append({"name":name,"kind":kind,"lower":low,"upper":high})
-            if kind in ("date","number") and low and high:
-                try: bad=low>high if kind=="date" else Decimal(low)>Decimal(high)
-                except (ValueError,InvalidOperation): bad=True
-                if bad:
-                    flash("Invalid range for "+name+": minimum/from cannot exceed maximum/to. Correct the range before applying filters.","error"); invalid_filters=True; continue
+            if kind in ("date","number") and (low or high):
+                try:
+                    validate_filter_range(kind, low, high)
+                except (ValueError, InvalidOperation):
+                    flash("Invalid range for "+name+": enter valid values and ensure the minimum/from does not exceed the maximum/to.","error")
+                    invalid_filters=True
+                    continue
             if kind=="date":
                 if low: where.append("CAST("+qi(name)+" AS CHAR)>=%s"); params.append(low)
                 if high: where.append("CAST("+qi(name)+" AS CHAR)<=%s"); params.append(high+(" 23:59:59" if "DATETIME" in typ and len(high)==10 else ""))
@@ -210,7 +250,7 @@ def table_page(table):
                     where.append(qi(name)+">=%s"); params.append(low_number)
                 if high_number is not None:
                     where.append(qi(name)+"<=%s"); params.append(high_number)
-            elif low: where.append("CAST("+qi(name)+" AS CHAR) LIKE %s"); params.append("%"+low+"%")
+            elif low: where.append("CAST("+qi(name)+" AS CHAR) LIKE %s ESCAPE '!'"); params.append("%"+escape_like(low)+"%")
         if invalid_filters:
             cols=columns_for(conn,table); rows=[]
         else:
@@ -335,6 +375,10 @@ def health():
         fk_violations=foreign_key_issue_count(conn)
     return {"database":DB_NAME,"backend":"mysql","table_count":tables,"view_count":views,"expected_tables":len(TABLES),"foreign_key_violations":fk_violations}
 
+@app.errorhandler(400)
+def bad_request(error):
+    return render_template("error.html",title="Request rejected",message="This request could not be verified. Reload the page and try again."),400
+
 @app.errorhandler(404)
 def not_found(error):
     return render_template("error.html",title="Not found",message="That table or record was not found."),404
@@ -342,7 +386,7 @@ def not_found(error):
 @app.errorhandler(Error)
 def db_error(exc):
     app.logger.exception("MySQL query failed")
-    return render_template("error.html",title="Database error",message="Check that MySQL Server is running and .env matches your database.",detail=str(exc)),500
+    return render_template("error.html",title="Database error",message="Check that MySQL Server is running and .env matches your database."),500
 
 if __name__=="__main__":
-    app.run(host="127.0.0.1",port=5000,debug=True)
+    app.run(host="0.0.0.0",port=int(os.getenv("PORT","5000")),debug=os.getenv("FLASK_DEBUG","0")=="1")
