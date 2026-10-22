@@ -67,6 +67,14 @@
           {% endfor %}
         </select>
       </div>
+      <div class="field">
+        <label>On delete</label>
+        <select name="column_fk_action[]">
+          <option value="RESTRICT">RESTRICT (default)</option>
+          <option value="CASCADE">CASCADE</option>
+          <option value="SET NULL">SET NULL</option>
+        </select>
+      </div>
       <button class="button ghost remove-column" type="button" aria-label="Remove column">Remove</button>
     </div>
     {% endfor %}
@@ -119,6 +127,7 @@
       '<label class="create-check"><input type="checkbox" name="column_auto[]"> Auto increment</label>' +
       '<div class="field"><label>References table</label><select name="column_fk_table[]" data-fk-table><option value="">No foreign key</option>' + foreignKeyOptions.map((item) => '<option value="' + item.table + '">' + item.table + '</option>').join("") + '</select></div>' +
       '<div class="field"><label>Referenced primary key</label><select name="column_fk_column[]" data-fk-column><option value="">Select table first</option></select></div>' +
+      '<div class="field"><label>On delete</label><select name="column_fk_action[]"><option value="RESTRICT">RESTRICT (default)</option><option value="CASCADE">CASCADE</option><option value="SET NULL">SET NULL</option></select></div>' +
       '<button class="button ghost remove-column" type="button">Remove</button>';
     list.appendChild(row);
     renumber();
