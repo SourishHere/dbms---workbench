@@ -15,7 +15,8 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
 DB_NAME = os.getenv("MYSQL_DATABASE", "vehicle_service")
-TABLES = ["CUSTOMER","VEHICLE_MODEL","VEHICLE","MECHANIC","SERVICE_TYPE","APPOINTMENT","SERVICE_RECORD","SUPPLIER","PART","SERVICE_PART","INVENTORY","INVOICE","PAYMENT","WARRANTY","FEEDBACK"]
+BUILTIN_TABLES = ["CUSTOMER","VEHICLE_MODEL","VEHICLE","MECHANIC","SERVICE_TYPE","APPOINTMENT","SERVICE_RECORD","SUPPLIER","PART","SERVICE_PART","INVENTORY","INVOICE","PAYMENT","WARRANTY","FEEDBACK"]
+TABLES = BUILTIN_TABLES.copy()
 LABELS = {t:t.replace("_"," ").title() for t in TABLES}
 PKS = {"CUSTOMER":"Customer_ID","VEHICLE_MODEL":"Model_ID","VEHICLE":"Vehicle_ID","MECHANIC":"Mechanic_ID","SERVICE_TYPE":"Service_Type_ID","APPOINTMENT":"Appointment_ID","SERVICE_RECORD":"Service_ID","SUPPLIER":"Supplier_ID","PART":"Part_ID","SERVICE_PART":None,"INVENTORY":"Inventory_ID","INVOICE":"Invoice_ID","PAYMENT":"Payment_ID","WARRANTY":"Warranty_ID","FEEDBACK":"Feedback_ID"}
 
@@ -359,6 +360,54 @@ def index():
         cur.execute("SELECT COUNT(*) FROM APPOINTMENT WHERE Status='Completed'"); completed=cur.fetchone()[0]
         cur.close()
     return render_template("index.html",counts=counts,customer_count=counts["CUSTOMER"],vehicle_count=counts["VEHICLE"],appointment_count=counts["APPOINTMENT"],completed=completed)
+
+@app.route("/delete-table/<table>", methods=["POST"])
+def delete_table(table):
+    if table not in TABLES or table in BUILTIN_TABLES:
+        flash("Only custom tables created in this database can be deleted here. Built-in project tables are protected.", "error")
+        return redirect(url_for("tables_page"))
+
+    try:
+        with connect_db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
+                "WHERE REFERENCED_TABLE_SCHEMA=%s AND REFERENCED_TABLE_NAME=%s",
+                (DB_NAME, table)
+            )
+            references = cur.fetchall()
+            if references:
+                cur.close()
+                flash("Cannot delete " + table + " because another table references it. Remove those foreign keys or dependent tables first.", "error")
+                return redirect(url_for("tables_page"))
+            cur.execute("DROP TABLE " + qi(table))
+            conn.commit()
+            cur.close()
+    except Error:
+        app.logger.exception("Could not delete custom table %s", table)
+        flash("The table could not be deleted. Check its foreign-key dependencies and database permissions.", "error")
+        return redirect(url_for("tables_page"))
+
+    schema_path = os.path.join(app.root_path, "schema.sql")
+    try:
+        with open(schema_path, "r", encoding="utf-8") as schema_file:
+            schema_text = schema_file.read()
+        marker = re.compile(
+            r"\\n\\n-- Table created from the website: " + re.escape(table) +
+            r"\\n.*?;[ \\t]*(?=\\n|$)",
+            re.IGNORECASE | re.DOTALL
+        )
+        schema_text = marker.sub("", schema_text, count=1)
+        with open(schema_path, "w", encoding="utf-8") as schema_file:
+            schema_file.write(schema_text)
+    except OSError:
+        app.logger.exception("Table %s deleted from MySQL, but schema.sql could not be updated.", table)
+        flash("Table " + table + " was deleted from MySQL, but schema.sql could not be updated.", "error")
+        return redirect(url_for("tables_page"))
+
+    flash("Custom table " + table + " deleted from MySQL and removed from schema.sql.", "success")
+    return redirect(url_for("tables_page"))
+
 
 @app.route("/tables")
 def tables_page():
