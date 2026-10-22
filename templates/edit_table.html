@@ -61,6 +61,22 @@
   </form>
 </section>
 
+{% if fk_rules %}
+<section class="panel schema-editor">
+  <h2>Foreign-key delete rules</h2>
+  <p class="note">Choose what MySQL should do when a referenced parent record is deleted. CASCADE deletes dependent rows; SET NULL clears the reference and requires a nullable column.</p>
+  <form method="post" class="record-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="rule">
+    <div class="form-grid">
+      <div class="field"><label>Existing foreign key</label><select name="fk_rule_column" required>{% for rule in fk_rules %}<option value="{{ rule.column }}">{{ rule.column }} → {{ rule.table }}.{{ rule.referenced_column }}</option>{% endfor %}</select></div>
+      <div class="field"><label>On delete</label><select name="fk_rule_action" required><option value="RESTRICT">RESTRICT (block parent deletion)</option><option value="CASCADE">CASCADE (delete child rows)</option><option value="SET NULL">SET NULL (clear child reference)</option></select></div>
+    </div>
+    <div class="form-actions"><button class="button primary" type="submit" onclick="return confirm('Changing a foreign-key delete rule affects related records. Continue?')">Update delete rule</button></div>
+  </form>
+</section>
+{% endif %}
+
 <section class="panel schema-editor">
   <h2>Remove a column</h2>
   <p class="note">This permanently deletes that column and its values. Primary-key, foreign-key, and externally referenced columns are protected.</p>
