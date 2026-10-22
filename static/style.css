@@ -69,3 +69,6 @@
 .report-option-grid p{font-size:11px;line-height:1.5;color:var(--muted);margin:6px 0 0}
 .empty{padding:18px 4px;color:var(--muted);font-size:12px}
 @media(max-width:600px){.query-selector{align-items:stretch}.query-select-field{min-width:100%}.report-option-grid{grid-template-columns:1fr}}
+
+/* Readable SQL statement display */
+.sql-code{max-height:360px;overflow:auto;white-space:pre;overflow-wrap:normal;font:12px/1.7 ui-monospace,SFMono-Regular,Consolas,'Liberation Mono',monospace;color:#393451;background:#f7f6fc;border:1px solid var(--line);padding:16px 18px;tab-size:4}.sql-code code{display:block;white-space:pre;font:inherit;color:inherit;padding:0;margin:0;background:transparent}
