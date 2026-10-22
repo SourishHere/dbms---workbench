@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Create View' if mode == 'create' else 'Modify View' }} | Vehicle Service{% endblock %}
+{% block heading %}{{ 'Create View' if mode == 'create' else 'Modify View' }}{% endblock %}
+{% block content %}
+<section class="sectionhead"><div><p class="eyebrow">DATABASE VIEW DESIGNER</p><h2>{{ 'Create a saved SELECT query' if mode == 'create' else 'Edit the saved SELECT query' }}</h2><p>Changes are applied to the connected MySQL database and the view definitions in schema.sql are refreshed.</p></div></section>
+<form method="post" class="record-form view-editor-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="field"><label for="view_name">View name</label><input id="view_name" name="view_name" value="{{ view_name }}" {% if mode == 'edit' %}readonly{% else %}required{% endif %} pattern="[A-Za-z][A-Za-z0-9_]{0,63}" maxlength="64" placeholder="e.g. CompletedAppointments"></div>
+  <div class="field"><label for="view_query">SELECT query</label><textarea id="view_query" name="view_query" rows="15" required spellcheck="false" placeholder="SELECT Appointment_ID, Status FROM APPOINTMENT WHERE Status = 'Completed'">{{ query }}</textarea><small>Only one SELECT or WITH…SELECT query is allowed. Do not include CREATE VIEW or multiple statements.</small></div>
+  <div class="view-editor-actions"><button class="button primary" type="submit">{{ 'Create view' if mode == 'create' else 'Save changes' }}</button><a class="button ghost" href="{{ url_for('views_page') }}">Cancel</a></div>
+</form>
+<section class="report"><h3>Example query</h3><pre class="sql-code"><code>SELECT Appointment_ID, Appointment_Date, Status
+FROM APPOINTMENT
+WHERE Status = 'Completed';</code></pre></section>
+{% endblock %}
