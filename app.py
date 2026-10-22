@@ -6,6 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from contextlib import contextmanager
 import mysql.connector
+import sqlparse
 from mysql.connector import Error
 from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
 from dotenv import load_dotenv
@@ -533,6 +534,7 @@ def reports():
                     "title": definition["title"],
                     "description": definition["description"],
                     "sql": definition["sql"],
+                    "display_sql": sqlparse.format(definition["sql"], reindent=True, keyword_case="upper", indent_width=4, wrap_after=88),
                     "rows": rows,
                     "columns": columns,
                     "error": None,
@@ -544,6 +546,7 @@ def reports():
                     "title": definition["title"],
                     "description": definition["description"],
                     "sql": definition["sql"],
+                    "display_sql": sqlparse.format(definition["sql"], reindent=True, keyword_case="upper", indent_width=4, wrap_after=88),
                     "rows": [],
                     "columns": [],
                     "error": "This report could not be run. Check the database schema and connection, then try again.",
