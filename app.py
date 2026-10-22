@@ -393,8 +393,8 @@ def delete_table(table):
         with open(schema_path, "r", encoding="utf-8") as schema_file:
             schema_text = schema_file.read()
         marker = re.compile(
-            r"\\n\\n-- Table created from the website: " + re.escape(table) +
-            r"\\n.*?;[ \\t]*(?=\\n|$)",
+            r"\n\n-- Table created from the website: " + re.escape(table) +
+            r"\n.*?;[ \t]*(?=\n|$)",
             re.IGNORECASE | re.DOTALL
         )
         schema_text = marker.sub("", schema_text, count=1)
