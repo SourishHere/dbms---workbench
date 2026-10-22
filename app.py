@@ -221,7 +221,7 @@ def date_only(value):
 
 @app.context_processor
 def inject_navigation():
-    return {"nav_tables":TABLES,"labels":LABELS,"nav_views":VIEWS,"view_labels":VIEW_LABELS,"db_backend":"MySQL"}
+    return {"nav_tables":TABLES,"labels":LABELS,"db_backend":"MySQL"}
 
 @app.route("/create-table",methods=["GET","POST"])
 def create_table():
