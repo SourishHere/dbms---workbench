@@ -10,8 +10,10 @@ This is the MySQL Workbench / MySQL Server port of the original Flask DBMS proje
 - Combined per-column text filters, numeric ranges and date ranges.
 - Add, view, edit and delete operations with MySQL constraint-error feedback.
 - Related-record dropdowns for foreign keys, dropdowns for status/payment/fuel/vehicle types, date/time fields and required-field checks.
-- Six SQL reports: JOIN, WHERE/ORDER BY, GROUP BY/HAVING, aggregates, subquery and the view.
+- SQL Query Selector with operational reports (service history, upcoming appointments, unpaid invoices, mechanic workload, most-serviced vehicles, monthly revenue, low-stock parts, customer summary, warranty expiry and supplier inventory) plus six SQL-learning reports.
 - `/health` endpoint to inspect the selected database and count tables/views.
+- CSRF protection for record-creation, record-editing and record-deletion forms; generic database error messages.
+- Automated unit tests for filter validation, literal text filtering, combined search, invalid ranges, report selection and CSRF. See `TESTING_CHECKLIST.md` for the manual database/CRUD/demo checks.
 
 ## Requirements
 - Python 3.10+
@@ -36,6 +38,7 @@ This is the MySQL Workbench / MySQL Server port of the original Flask DBMS proje
    ```
 
 5. Open http://127.0.0.1:5000.
+6. Run automated checks with `python -m unittest discover -s tests -v`.
 
 ## Important
 - The website connects to MySQL Server. MySQL Workbench is the client used to inspect that same database.
