@@ -1,4 +1,7 @@
+import os
+import re
 import unittest
+import uuid
 from unittest.mock import patch
 
 import app as project
@@ -102,6 +105,119 @@ class RouteTests(unittest.TestCase):
         for key, definition in project.REPORTS.items():
             with self.subTest(report=key):
                 self.assertTrue(definition["sql"].lstrip().upper().startswith("SELECT"))
+
+
+@unittest.skipUnless(os.getenv("RUN_DB_INTEGRATION") == "1", "Requires the disposable MySQL integration database")
+class DatabaseIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        project.app.config.update(TESTING=True, SECRET_KEY="integration-test-secret")
+        self.client = project.app.test_client()
+
+    def csrf_from(self, response):
+        html = response.get_data(as_text=True)
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', html)
+        self.assertIsNotNone(match, "Expected a CSRF token on the form")
+        return match.group(1)
+
+    def test_every_report_executes_without_sql_error(self):
+        for key, definition in project.REPORTS.items():
+            with self.subTest(report=key):
+                response = self.client.get("/reports", query_string={"report": key})
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(definition["title"].encode(), response.data)
+                self.assertNotIn(b"Query error", response.data)
+
+    def test_health_reports_expected_schema_and_no_orphans(self):
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["table_count"], 15)
+        self.assertGreaterEqual(data["view_count"], 1)
+        self.assertEqual(data["foreign_key_violations"], 0)
+
+    def test_customer_create_edit_delete_cycle(self):
+        suffix = uuid.uuid4().hex
+        email = "dbms-test-" + suffix + "@example.test"
+        phone = "9" + suffix[:14]
+        customer_id = None
+        try:
+            form = self.client.get("/table/CUSTOMER/add")
+            self.assertEqual(form.status_code, 200)
+            response = self.client.post("/table/CUSTOMER/add", data={
+                "csrf_token": self.csrf_from(form),
+                "Customer_Name": "DBMS Test Customer",
+                "Phone": phone,
+                "Email": email,
+                "Address": "Temporary test record",
+            })
+            self.assertEqual(response.status_code, 302)
+
+            conn = project.db()
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT Customer_ID FROM CUSTOMER WHERE Email=%s", (email,))
+                found = cur.fetchone()
+                self.assertIsNotNone(found)
+                customer_id = found[0]
+                cur.close()
+            finally:
+                conn.close()
+
+            edit_form = self.client.get("/table/CUSTOMER/edit/" + str(customer_id))
+            self.assertEqual(edit_form.status_code, 200)
+            response = self.client.post("/table/CUSTOMER/edit/" + str(customer_id), data={
+                "csrf_token": self.csrf_from(edit_form),
+                "Customer_Name": "DBMS Test Customer Edited",
+                "Phone": phone,
+                "Email": email,
+                "Address": "Updated test record",
+            })
+            self.assertEqual(response.status_code, 302)
+
+            conn = project.db()
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT Customer_Name FROM CUSTOMER WHERE Customer_ID=%s", (customer_id,))
+                self.assertEqual(cur.fetchone()[0], "DBMS Test Customer Edited")
+                cur.close()
+            finally:
+                conn.close()
+
+            table_page = self.client.get("/table/CUSTOMER")
+            response = self.client.post("/table/CUSTOMER/delete/" + str(customer_id), data={
+                "csrf_token": self.csrf_from(table_page)
+            })
+            self.assertEqual(response.status_code, 302)
+            customer_id = None
+        finally:
+            conn = project.db()
+            try:
+                cur = conn.cursor()
+                cur.execute("DELETE FROM CUSTOMER WHERE Email=%s", (email,))
+                conn.commit()
+                cur.close()
+            finally:
+                conn.close()
+
+    def test_database_rejects_orphan_vehicle_and_negative_mileage(self):
+        conn = project.db()
+        try:
+            cur = conn.cursor()
+            with self.assertRaises(project.Error):
+                cur.execute(
+                    "INSERT INTO VEHICLE (Registration_No,Customer_ID,Model_ID,Manufacture_Year,Mileage) VALUES (%s,%s,%s,%s,%s)",
+                    ("TEST-FK-" + uuid.uuid4().hex[:10], 999999, 201, 2022, 1000),
+                )
+            conn.rollback()
+            with self.assertRaises(project.Error):
+                cur.execute(
+                    "INSERT INTO VEHICLE (Registration_No,Customer_ID,Model_ID,Manufacture_Year,Mileage) VALUES (%s,%s,%s,%s,%s)",
+                    ("TEST-CK-" + uuid.uuid4().hex[:10], 101, 201, 2022, -1),
+                )
+            conn.rollback()
+            cur.close()
+        finally:
+            conn.close()
 
 
 if __name__ == "__main__":
