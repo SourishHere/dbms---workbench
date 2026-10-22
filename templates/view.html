@@ -1,9 +1,0 @@
-{% extends "base.html" %}
-{% block title %}{{ label }} | Database View{% endblock %}
-{% block heading %}{{ label }}{% endblock %}
-{% block content %}
-<section class="sectionhead toolbar"><div><p class="eyebrow">READ-ONLY DATABASE VIEW</p><h2>{{ label }}</h2><p>Results come from the saved SELECT statement in MySQL. Views display records but do not provide direct row editing here.</p></div><div class="table-header-actions"><a class="button ghost" href="{{ url_for('edit_view',view_name=view_name) }}">Modify SQL</a><a class="button ghost" href="{{ url_for('views_page') }}">All views</a></div></section>
-<form class="search" method="get"><input name="q" value="{{ search }}" placeholder="Search view results…"><button class="button dark" type="submit">Search</button>{% if search %}<a class="button ghost" href="{{ url_for('view_page',view_name=view_name) }}">Clear</a>{% endif %}</form>
-<p class="note">{{ rows|length }} row(s) shown · maximum 250 rows.</p>
-<div class="tablewrap"><table><thead><tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead><tbody>{% for row in rows %}<tr>{% for col in columns %}<td>{{ (row[col]|date_only) if row[col] is not none else '—' }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="{{ columns|length if columns else 1 }}">No matching records.</td></tr>{% endfor %}</tbody></table></div>
-{% endblock %}
