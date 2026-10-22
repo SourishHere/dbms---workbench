@@ -49,6 +49,24 @@
       <label class="create-check"><input type="checkbox" name="column_pk[]" value="{{ index }}"{% if index == 0 %} checked{% endif %}> Primary key</label>
       <label class="create-check"><input type="checkbox" name="column_required[]" value="{{ index }}"{% if index == 0 %} checked{% endif %}> Not null</label>
       <label class="create-check"><input type="checkbox" name="column_auto[]" value="{{ index }}"{% if index == 0 %} checked{% endif %}> Auto increment</label>
+      <div class="field">
+        <label>References table</label>
+        <select name="column_fk_table[]" data-fk-table>
+          <option value="">No foreign key</option>
+          {% for option in foreign_key_options %}
+          <option value="{{ option.table }}">{{ option.table }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Referenced primary key</label>
+        <select name="column_fk_column[]" data-fk-column>
+          <option value="">Select table first</option>
+          {% for option in foreign_key_options %}
+          <option value="{{ option.column }}" data-table="{{ option.table }}">{{ option.table }}.{{ option.column }}</option>
+          {% endfor %}
+        </select>
+      </div>
       <button class="button ghost remove-column" type="button" aria-label="Remove column">Remove</button>
     </div>
     {% endfor %}
@@ -64,6 +82,24 @@
 (function () {
   const list = document.getElementById("column-list");
   const addButton = document.getElementById("add-column");
+  const foreignKeyOptions = {{ foreign_key_options|tojson }};
+  function updateForeignKeyColumns(row) {
+    const tableSelect = row.querySelector("[data-fk-table]");
+    const columnSelect = row.querySelector("[data-fk-column]");
+    const selectedTable = tableSelect.value;
+    const matches = foreignKeyOptions.filter((item) => item.table === selectedTable);
+    columnSelect.innerHTML = '<option value="">Select primary key</option>';
+    matches.forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.column;
+      option.textContent = item.table + "." + item.column;
+      columnSelect.appendChild(option);
+    });
+    if (!selectedTable) columnSelect.innerHTML = '<option value="">No foreign key selected</option>';
+  }
+  list.addEventListener("change", (event) => {
+    if (event.target.matches("[data-fk-table]")) updateForeignKeyColumns(event.target.closest("[data-column-row]"));
+  });
   function renumber() {
     Array.from(list.querySelectorAll("[data-column-row]")).forEach((row, index) => {
       row.querySelectorAll('input[type="checkbox"]').forEach((box) => { box.value = String(index); });
@@ -81,6 +117,8 @@
       '<label class="create-check"><input type="checkbox" name="column_pk[]"> Primary key</label>' +
       '<label class="create-check"><input type="checkbox" name="column_required[]"> Not null</label>' +
       '<label class="create-check"><input type="checkbox" name="column_auto[]"> Auto increment</label>' +
+      '<div class="field"><label>References table</label><select name="column_fk_table[]" data-fk-table><option value="">No foreign key</option>' + foreignKeyOptions.map((item) => '<option value="' + item.table + '">' + item.table + '</option>').join("") + '</select></div>' +
+      '<div class="field"><label>Referenced primary key</label><select name="column_fk_column[]" data-fk-column><option value="">Select table first</option></select></div>' +
       '<button class="button ghost remove-column" type="button">Remove</button>';
     list.appendChild(row);
     renumber();
@@ -92,6 +130,7 @@
       renumber();
     }
   });
+  list.querySelectorAll("[data-column-row]").forEach(updateForeignKeyColumns);
   renumber();
 })();
 </script>
