@@ -178,7 +178,7 @@ def tables_page():
 @app.route("/table/<table>")
 def table_page(table):
     if table not in TABLES: abort(404)
-    search=request.args.get("q","").strip(); where=[]; params=[]; filters=[]
+    search=request.args.get("q","").strip(); where=[]; params=[]; filters=[]; invalid_filters=False
     with connect_db() as conn:
         cols=table_info(conn,table)
         for col in cols:
@@ -194,7 +194,7 @@ def table_page(table):
                 try: bad=low>high if kind=="date" else Decimal(low)>Decimal(high)
                 except (ValueError,InvalidOperation): bad=True
                 if bad:
-                    flash("Invalid range for "+name+": minimum/from cannot exceed maximum/to.","error"); continue
+                    flash("Invalid range for "+name+": minimum/from cannot exceed maximum/to. Correct the range before applying filters.","error"); invalid_filters=True; continue
             if kind=="date":
                 if low: where.append("CAST("+qi(name)+" AS CHAR)>=%s"); params.append(low)
                 if high: where.append("CAST("+qi(name)+" AS CHAR)<=%s"); params.append(high+(" 23:59:59" if "DATETIME" in typ and len(high)==10 else ""))
@@ -202,15 +202,19 @@ def table_page(table):
                 try:
                     low_number=Decimal(low) if low else None
                     high_number=Decimal(high) if high else None
-                except InvalidOperation:
-                    flash("Invalid numeric range for "+name+".","error")
+                except (ValueError, InvalidOperation):
+                    flash("Invalid numeric range for "+name+". Correct the value before applying filters.","error")
+                    invalid_filters=True
                     continue
                 if low_number is not None:
                     where.append(qi(name)+">=%s"); params.append(low_number)
                 if high_number is not None:
                     where.append(qi(name)+"<=%s"); params.append(high_number)
             elif low: where.append("CAST("+qi(name)+" AS CHAR) LIKE %s"); params.append("%"+low+"%")
-        cols,rows=get_rows(conn,table,search,where,params,250)
+        if invalid_filters:
+            cols=columns_for(conn,table); rows=[]
+        else:
+            cols,rows=get_rows(conn,table,search,where,params,250)
         pk=primary_key(table_info(conn,table))
         fk_errors=foreign_key_issue_count(conn)
     return render_template("table.html",table=table,label=LABELS[table],columns=[c["name"] for c in cols],rows=rows,pk=pk,search=search,filter_fields=filters,has_column_filters=any(f["lower"] or f["upper"] for f in filters),total=len(rows),fk_error_count=fk_errors)
