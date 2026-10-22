@@ -1,0 +1,108 @@
+import unittest
+from unittest.mock import patch
+
+import app as project
+
+
+class FilterHelperTests(unittest.TestCase):
+    def test_like_wildcards_are_treated_as_literal_text(self):
+        self.assertEqual(project.escape_like("red_%!"), "red!_!%!!")
+
+    def test_valid_numeric_range(self):
+        self.assertTrue(project.validate_filter_range("number", "100", "200"))
+        self.assertTrue(project.validate_filter_range("number", "100", ""))
+
+    def test_reversed_numeric_range_is_rejected(self):
+        with self.assertRaises(ValueError):
+            project.validate_filter_range("number", "50000", "10000")
+
+    def test_non_finite_numeric_range_is_rejected(self):
+        for value in ("NaN", "Infinity", "-Infinity"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    project.validate_filter_range("number", value, "")
+
+    def test_date_range_validation(self):
+        self.assertTrue(project.validate_filter_range("date", "2026-10-01", "2026-10-31"))
+        with self.assertRaises(ValueError):
+            project.validate_filter_range("date", "2026-10-31", "2026-10-01")
+        with self.assertRaises(ValueError):
+            project.validate_filter_range("date", "not-a-date", "")
+
+
+class RouteTests(unittest.TestCase):
+    def setUp(self):
+        project.app.config.update(TESTING=True, SECRET_KEY="test-secret")
+        self.client = project.app.test_client()
+        self.columns = [
+            {"name": "Mileage", "type": "DECIMAL(10,2)", "notnull": False,
+             "pk": False, "identity": False, "default": None, "fk": None},
+            {"name": "Color", "type": "VARCHAR(50)", "notnull": False,
+             "pk": False, "identity": False, "default": None, "fk": None},
+            {"name": "Appointment_Date", "type": "DATETIME", "notnull": True,
+             "pk": False, "identity": False, "default": None, "fk": None},
+        ]
+
+    def fake_connection(self):
+        class Connection:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+        return Connection()
+
+    def table_patches(self):
+        return (
+            patch.object(project, "connect_db", side_effect=self.fake_connection),
+            patch.object(project, "table_info", return_value=self.columns),
+            patch.object(project, "columns_for", return_value=self.columns),
+            patch.object(project, "foreign_key_issue_count", return_value=0),
+        )
+
+    def test_invalid_numeric_range_does_not_query_records(self):
+        p1, p2, p3, p4 = self.table_patches()
+        with p1, p2, p3, p4, patch.object(project, "get_rows") as get_rows:
+            response = self.client.get("/table/VEHICLE?filter_min_Mileage=50000&filter_max_Mileage=10000")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Invalid range", response.data)
+        self.assertIn(b"No matching records", response.data)
+        get_rows.assert_not_called()
+
+    def test_partial_text_filter_escapes_sql_wildcards(self):
+        p1, p2, p3, p4 = self.table_patches()
+        with p1, p2, p3, p4, patch.object(project, "get_rows", return_value=(self.columns, [])) as get_rows:
+            response = self.client.get("/table/VEHICLE?filter_Color=red_%25")
+        self.assertEqual(response.status_code, 200)
+        args = get_rows.call_args.args
+        self.assertIn("LIKE %s ESCAPE '!'", args[3][0])
+        self.assertEqual(args[4], ["%red!_!%%"])
+
+    def test_global_search_and_column_filter_are_combined(self):
+        p1, p2, p3, p4 = self.table_patches()
+        with p1, p2, p3, p4, patch.object(project, "get_rows", return_value=(self.columns, [])) as get_rows:
+            response = self.client.get("/table/VEHICLE?q=swift&filter_Color=red")
+        self.assertEqual(response.status_code, 200)
+        args = get_rows.call_args.args
+        self.assertEqual(args[2], "swift")
+        self.assertIn("LIKE %s ESCAPE '!'", args[3][0])
+        self.assertEqual(args[4], ["%red%"])
+
+    def test_report_selector_loads_without_running_a_query(self):
+        response = self.client.get("/reports")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Run Query", response.data)
+        self.assertIn(b"Vehicle Service History", response.data)
+
+    def test_post_without_csrf_token_is_rejected_before_database_access(self):
+        response = self.client.post("/table/CUSTOMER/add", data={"Customer_Name": "Test"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_all_reports_are_select_whitelisted(self):
+        self.assertGreaterEqual(len(project.REPORTS), 16)
+        for key, definition in project.REPORTS.items():
+            with self.subTest(report=key):
+                self.assertTrue(definition["sql"].lstrip().upper().startswith("SELECT"))
+
+
+if __name__ == "__main__":
+    unittest.main()
