@@ -24,11 +24,34 @@ def db():
 
 @app.before_request
 def protect_post_requests():
+    global TABLES, LABELS
     if request.method == "POST":
         expected = session.get("_csrf_token")
         submitted = request.form.get("csrf_token", "")
         if not expected or not submitted or not hmac.compare_digest(expected, submitted):
             abort(400)
+    try:
+        conn = db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
+            "WHERE TABLE_SCHEMA=%s AND TABLE_TYPE='BASE TABLE'",
+            (DB_NAME,)
+        )
+        found = {row[0] for row in cur.fetchall()}
+        cur.close()
+        conn.close()
+        original_order = [
+            "CUSTOMER", "VEHICLE_MODEL", "VEHICLE", "MECHANIC",
+            "SERVICE_TYPE", "APPOINTMENT", "SERVICE_RECORD", "SUPPLIER",
+            "PART", "SERVICE_PART", "INVENTORY", "INVOICE", "PAYMENT",
+            "WARRANTY", "FEEDBACK"
+        ]
+        TABLES = [name for name in original_order if name in found]
+        TABLES.extend(sorted(found.difference(TABLES)))
+        LABELS = {name: name.replace("_", " ").title() for name in TABLES}
+    except Error:
+        app.logger.exception("Could not refresh the database table list.")
 
 @app.context_processor
 def inject_csrf_token():
@@ -197,6 +220,90 @@ def date_only(value):
 def inject_navigation():
     return {"nav_tables":TABLES,"labels":LABELS,"db_backend":"MySQL"}
 
+@app.route("/create-table",methods=["GET","POST"])
+def create_table():
+    if request.method == "GET":
+        return render_template("create_table.html")
+
+    raw_table = request.form.get("table_name", "").strip().upper()
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", raw_table):
+        flash("Use a table name starting with a letter and containing only letters, numbers, and underscores (maximum 64 characters).", "error")
+        return render_template("create_table.html")
+
+    column_names = request.form.getlist("column_name[]")
+    column_types = request.form.getlist("column_type[]")
+    pk_indexes = set(request.form.getlist("column_pk[]"))
+    required_indexes = set(request.form.getlist("column_required[]"))
+    auto_indexes = set(request.form.getlist("column_auto[]"))
+    allowed_types = {"INT": "INT", "VARCHAR(255)": "VARCHAR(255)", "TEXT": "TEXT", "DECIMAL(10,2)": "DECIMAL(10,2)", "DATE": "DATE", "DATETIME": "DATETIME", "BOOLEAN": "BOOLEAN"}
+
+    if raw_table in TABLES:
+        flash("A table with that name already exists.", "error")
+        return render_template("create_table.html")
+    if len(column_names) < 1 or len(column_names) > 20 or len(column_names) != len(column_types):
+        flash("Add between 1 and 20 columns.", "error")
+        return render_template("create_table.html")
+
+    clean_columns = []
+    seen_names = set()
+    for index, (raw_name, raw_type) in enumerate(zip(column_names, column_types)):
+        name = raw_name.strip()
+        normalized = name.lower()
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", name) or normalized in seen_names:
+            flash("Column names must be unique and contain only letters, numbers, and underscores.", "error")
+            return render_template("create_table.html")
+        if raw_type not in allowed_types:
+            flash("Choose a supported data type for every column.", "error")
+            return render_template("create_table.html")
+        is_pk = str(index) in pk_indexes
+        is_required = str(index) in required_indexes or is_pk
+        is_auto = str(index) in auto_indexes
+        if is_auto and (raw_type != "INT" or not is_pk):
+            flash("AUTO_INCREMENT can only be used on an INT primary-key column.", "error")
+            return render_template("create_table.html")
+        definition = qi(name) + " " + allowed_types[raw_type]
+        if is_required:
+            definition += " NOT NULL"
+        if is_auto:
+            definition += " AUTO_INCREMENT"
+        if is_pk:
+            definition += " PRIMARY KEY"
+        clean_columns.append(definition)
+        seen_names.add(normalized)
+
+    if len(pk_indexes) != 1:
+        flash("Choose exactly one primary-key column.", "error")
+        return render_template("create_table.html")
+
+    statement = "CREATE TABLE " + qi(raw_table) + " (\n    " + ",\n    ".join(clean_columns) + "\n);"
+    try:
+        with connect_db() as conn:
+            cur = conn.cursor()
+            cur.execute(statement)
+            conn.commit()
+            cur.close()
+    except (Error, ValueError) as exc:
+        app.logger.warning("Could not create table %s: %s", raw_table, exc)
+        flash("MySQL could not create this table. Check its name and column definitions.", "error")
+        return render_template("create_table.html")
+
+    schema_saved = False
+    schema_path = os.path.join(app.root_path, "schema.sql")
+    try:
+        with open(schema_path, "a", encoding="utf-8") as schema_file:
+            schema_file.write("\n\n-- Table created from the website: " + raw_table + "\n")
+            schema_file.write(statement + "\n")
+        schema_saved = True
+    except OSError:
+        app.logger.exception("Table %s was created, but schema.sql could not be updated.", raw_table)
+
+    if schema_saved:
+        flash("Table " + raw_table + " created successfully and appended to schema.sql.", "success")
+    else:
+        flash("Table " + raw_table + " was created, but schema.sql could not be updated. Check file permissions.", "error")
+    return redirect(url_for("tables_page"))
+
+
 @app.route("/")
 def index():
     with connect_db() as conn:
@@ -302,10 +409,10 @@ def add_record(table):
 @app.route("/table/<table>/edit/<path:key>",methods=["GET","POST"])
 def edit_record(table,key):
     if table not in TABLES: abort(404)
-    pk=PKS[table]
-    if not pk:
-        flash("This table has a composite primary key. Edit it in MySQL Workbench or SQL.","error"); return redirect(url_for("table_page",table=table))
     with connect_db() as conn:
+        pk=primary_key(table_info(conn,table))
+        if not pk:
+            flash("This table has a composite primary key or no single-column primary key. Edit it in SQL.","error"); return redirect(url_for("table_page",table=table))
         cur=conn.cursor(dictionary=True); cur.execute("SELECT * FROM "+qi(table)+" WHERE "+qi(pk)+"=%s",(key,)); record=cur.fetchone(); cur.close()
         if not record: abort(404)
         if request.method=="GET": return render_record_form(table,"edit",record)
@@ -342,10 +449,10 @@ def edit_record(table,key):
 @app.route("/table/<table>/delete/<path:key>",methods=["POST"])
 def delete_record(table,key):
     if table not in TABLES: abort(404)
-    pk=PKS[table]
-    if not pk:
-        flash("Delete is disabled for this composite-key table.","error"); return redirect(url_for("table_page",table=table))
     with connect_db() as conn:
+        pk=primary_key(table_info(conn,table))
+        if not pk:
+            flash("Delete is disabled for tables without a single-column primary key.","error"); return redirect(url_for("table_page",table=table))
         try:
             cur=conn.cursor(); cur.execute("DELETE FROM "+qi(table)+" WHERE "+qi(pk)+"=%s",(key,)); conn.commit()
             flash("Record deleted." if cur.rowcount else "No matching record.","success" if cur.rowcount else "error"); cur.close()
