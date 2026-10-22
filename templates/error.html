@@ -1,1 +1,4 @@
-{% extends "base.html" %}{% block title %}Database error{% endblock %}{% block heading %}Database connection issue{% endblock %}{% block content %}<section class="panel"><h2>Could not load data</h2><p>{{ message }}</p><pre>{{ detail }}</pre><p>Check MySQL Server status, schema setup and .env settings.</p><a class="button primary" href="{{ url_for('index') }}">Try again</a></section>{% endblock %}
+{% extends "base.html" %}
+{% block title %}{{ title or 'Error' }}{% endblock %}
+{% block heading %}{{ title or 'Something went wrong' }}{% endblock %}
+{% block content %}<section class="report"><h2>{{ message or 'The requested page could not be found.' }}</h2>{% if detail %}<pre>{{ detail }}</pre>{% endif %}<a class="button primary" href="{{ url_for('index') }}">Back to dashboard</a></section>{% endblock %}
