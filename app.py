@@ -253,12 +253,13 @@ def create_table():
     auto_indexes = set(request.form.getlist("column_auto[]"))
     fk_tables = request.form.getlist("column_fk_table[]")
     fk_columns = request.form.getlist("column_fk_column[]")
+    fk_actions = request.form.getlist("column_fk_action[]")
     allowed_types = {"INT": "INT", "VARCHAR(255)": "VARCHAR(255)", "TEXT": "TEXT", "DECIMAL(10,2)": "DECIMAL(10,2)", "DATE": "DATE", "DATETIME": "DATETIME", "BOOLEAN": "BOOLEAN"}
 
     if raw_table in TABLES:
         flash("A table with that name already exists.", "error")
         return render_template("create_table.html", foreign_key_options=foreign_key_options)
-    if len(column_names) < 1 or len(column_names) > 20 or len(column_names) != len(column_types) or len(fk_tables) != len(column_names) or len(fk_columns) != len(column_names):
+    if len(column_names) < 1 or len(column_names) > 20 or len(column_names) != len(column_types) or len(fk_tables) != len(column_names) or len(fk_columns) != len(column_names) or len(fk_actions) != len(column_names):
         flash("Add between 1 and 20 columns.", "error")
         return render_template("create_table.html", foreign_key_options=foreign_key_options)
     valid_indexes = {str(index) for index in range(len(column_names))}
@@ -268,7 +269,10 @@ def create_table():
 
     fk_by_index = []
     option_lookup = {(item["table"], item["column"]): item for item in foreign_key_options}
-    for index, (fk_table, fk_column) in enumerate(zip(fk_tables, fk_columns)):
+    for index, (fk_table, fk_column, fk_action) in enumerate(zip(fk_tables, fk_columns, fk_actions)):
+        if fk_action not in {"RESTRICT", "CASCADE", "SET NULL"}:
+            flash("Choose a valid foreign-key delete rule.", "error")
+            return render_template("create_table.html", foreign_key_options=foreign_key_options)
         if bool(fk_table) != bool(fk_column):
             flash("Choose both a referenced table and column for each foreign key.", "error")
             return render_template("create_table.html", foreign_key_options=foreign_key_options)
@@ -285,7 +289,10 @@ def create_table():
             if source_family != target_family:
                 flash("The foreign-key column must use a compatible data type with the referenced primary key.", "error")
                 return render_template("create_table.html", foreign_key_options=foreign_key_options)
-            fk_by_index.append((index, fk_table, fk_column))
+            if fk_action == "SET NULL" and str(index) in required_indexes:
+                flash("SET NULL requires the foreign-key column to allow NULL values.", "error")
+                return render_template("create_table.html", foreign_key_options=foreign_key_options)
+            fk_by_index.append((index, fk_table, fk_column, fk_action))
     clean_columns = []
     seen_names = set()
     for index, (raw_name, raw_type) in enumerate(zip(column_names, column_types)):
@@ -317,10 +324,10 @@ def create_table():
         flash("Choose exactly one primary-key column.", "error")
         return render_template("create_table.html", foreign_key_options=foreign_key_options)
 
-    for index, fk_table, fk_column in fk_by_index:
+    for index, fk_table, fk_column, fk_action in fk_by_index:
         clean_columns.append(
             "FOREIGN KEY (" + qi(column_names[index].strip()) + ") REFERENCES "
-            + qi(fk_table) + "(" + qi(fk_column) + ")"
+            + qi(fk_table) + "(" + qi(fk_column) + ") ON DELETE " + fk_action
         )
 
     statement = "CREATE TABLE " + qi(raw_table) + " (\n    " + ",\n    ".join(clean_columns) + "\n);"
@@ -360,6 +367,152 @@ def index():
         cur.execute("SELECT COUNT(*) FROM APPOINTMENT WHERE Status='Completed'"); completed=cur.fetchone()[0]
         cur.close()
     return render_template("index.html",counts=counts,customer_count=counts["CUSTOMER"],vehicle_count=counts["VEHICLE"],appointment_count=counts["APPOINTMENT"],completed=completed)
+
+@app.route("/edit-table/<table>", methods=["GET", "POST"])
+def edit_table(table):
+    if table not in TABLES:
+        abort(404)
+
+    allowed_types = {
+        "INT": "INT",
+        "BIGINT": "BIGINT",
+        "VARCHAR(255)": "VARCHAR(255)",
+        "TEXT": "TEXT",
+        "DECIMAL(10,2)": "DECIMAL(10,2)",
+        "DATE": "DATE",
+        "DATETIME": "DATETIME",
+        "BOOLEAN": "BOOLEAN"
+    }
+
+    with connect_db() as conn:
+        columns = table_info(conn, table)
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, "
+            "CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
+            "WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s AND REFERENCED_TABLE_NAME IS NOT NULL",
+            (DB_NAME, table)
+        )
+        fk_columns = {row["COLUMN_NAME"] for row in cur.fetchall()}
+        cur.close()
+
+        if request.method == "GET":
+            return render_template(
+                "edit_table.html", table=table, label=LABELS[table],
+                columns=columns, fk_columns=fk_columns, allowed_types=list(allowed_types)
+            )
+
+        action = request.form.get("action", "")
+        statements = []
+        if action == "add":
+            name = request.form.get("column_name", "").strip()
+            raw_type = request.form.get("column_type", "")
+            nullable = request.form.get("nullable") == "yes"
+            fk_table = request.form.get("fk_table", "").strip()
+            fk_column = request.form.get("fk_column", "").strip()
+            fk_action = request.form.get("fk_action", "RESTRICT")
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", name):
+                flash("Use a valid column name.", "error")
+                return redirect(url_for("edit_table", table=table))
+            if name.lower() in {col["name"].lower() for col in columns}:
+                flash("That column already exists.", "error")
+                return redirect(url_for("edit_table", table=table))
+            if raw_type not in allowed_types or fk_action not in {"RESTRICT", "CASCADE", "SET NULL"}:
+                flash("Choose a valid data type and foreign-key rule.", "error")
+                return redirect(url_for("edit_table", table=table))
+            definition = qi(name) + " " + allowed_types[raw_type]
+            if not nullable:
+                definition += " NOT NULL"
+            if fk_table or fk_column:
+                if not fk_table or not fk_column:
+                    flash("Choose both a referenced table and key.", "error")
+                    return redirect(url_for("edit_table", table=table))
+                if fk_table not in TABLES:
+                    flash("Referenced table does not exist.", "error")
+                    return redirect(url_for("edit_table", table=table))
+                target_columns = table_info(conn, fk_table)
+                target = next((col for col in target_columns if col["name"] == fk_column and col["pk"]), None)
+                if not target:
+                    flash("Foreign keys must reference an existing primary key.", "error")
+                    return redirect(url_for("edit_table", table=table))
+                source_family = allowed_types[raw_type].split("(")[0].upper()
+                target_family = target["type"].split("(")[0].upper()
+                if source_family != target_family:
+                    flash("Foreign-key data type must match the referenced primary key type.", "error")
+                    return redirect(url_for("edit_table", table=table))
+                if fk_action == "SET NULL" and not nullable:
+                    flash("SET NULL requires this column to allow NULL values.", "error")
+                    return redirect(url_for("edit_table", table=table))
+                constraint = "fk_" + table.lower() + "_" + name.lower()
+                statements.append(
+                    "ALTER TABLE " + qi(table) + " ADD COLUMN " + definition +
+                    ", ADD CONSTRAINT " + qi(constraint) + " FOREIGN KEY (" + qi(name) +
+                    ") REFERENCES " + qi(fk_table) + "(" + qi(fk_column) +
+                    ") ON DELETE " + fk_action
+                )
+            else:
+                statements.append("ALTER TABLE " + qi(table) + " ADD COLUMN " + definition)
+        elif action == "modify":
+            name = request.form.get("existing_column", "")
+            raw_type = request.form.get("new_type", "")
+            nullable = request.form.get("new_nullable") == "yes"
+            current = next((col for col in columns if col["name"] == name), None)
+            if not current or raw_type not in allowed_types:
+                flash("Choose an existing column and valid data type.", "error")
+                return redirect(url_for("edit_table", table=table))
+            if current["name"] in fk_columns or current["pk"]:
+                flash("Primary-key and foreign-key columns cannot be modified here. Remove or redesign their constraints first.", "error")
+                return redirect(url_for("edit_table", table=table))
+            definition = qi(name) + " " + allowed_types[raw_type] + (" NULL" if nullable else " NOT NULL")
+            statements.append("ALTER TABLE " + qi(table) + " MODIFY COLUMN " + definition)
+        elif action == "drop":
+            name = request.form.get("drop_column", "")
+            current = next((col for col in columns if col["name"] == name), None)
+            if not current:
+                flash("Choose an existing column.", "error")
+                return redirect(url_for("edit_table", table=table))
+            if current["pk"] or current["name"] in fk_columns:
+                flash("Primary-key and foreign-key columns are protected from removal in this form.", "error")
+                return redirect(url_for("edit_table", table=table))
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
+                "WHERE TABLE_SCHEMA=%s AND REFERENCED_TABLE_NAME=%s AND REFERENCED_COLUMN_NAME=%s",
+                (DB_NAME, table, name)
+            )
+            referenced = cur.fetchall()
+            cur.close()
+            if referenced:
+                flash("This column is referenced by another table and cannot be removed.", "error")
+                return redirect(url_for("edit_table", table=table))
+            statements.append("ALTER TABLE " + qi(table) + " DROP COLUMN " + qi(name))
+        else:
+            flash("Choose a valid table-edit action.", "error")
+            return redirect(url_for("edit_table", table=table))
+
+        try:
+            cur = conn.cursor()
+            for statement in statements:
+                cur.execute(statement)
+            conn.commit()
+            cur.close()
+        except (Error, ValueError) as exc:
+            conn.rollback()
+            app.logger.warning("Could not alter table %s: %s", table, exc)
+            flash("MySQL rejected the table change: " + str(exc.msg if hasattr(exc, "msg") else exc)[:180], "error")
+            return redirect(url_for("edit_table", table=table))
+
+    schema_path = os.path.join(app.root_path, "schema.sql")
+    try:
+        with open(schema_path, "a", encoding="utf-8") as schema_file:
+            schema_file.write("\n\n-- Table structure change made from the website: " + table + "\n")
+            schema_file.write(";\n".join(statements) + ";\n")
+        flash("Table structure updated in MySQL and change recorded in schema.sql.", "success")
+    except OSError:
+        app.logger.exception("Table %s altered, but schema.sql could not be updated.", table)
+        flash("Table structure changed in MySQL, but schema.sql could not be updated.", "error")
+    return redirect(url_for("table_page", table=table))
+
 
 @app.route("/delete-table/<table>", methods=["POST"])
 def delete_table(table):
