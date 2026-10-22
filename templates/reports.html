@@ -46,7 +46,7 @@
   </div>
   <details>
     <summary>View SQL statement</summary>
-    <pre><code>{{ report_result.sql }}</code></pre>
+    <pre class="sql-code"><code>{{ report_result.display_sql }}</code></pre>
   </details>
   {% if report_result.error %}
     <p class="error-text">{{ report_result.error }}</p>
