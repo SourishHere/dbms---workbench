@@ -1,6 +1,6 @@
 # DBMS Review 3 — verification checklist
 
-This checklist is for the existing MySQL database. It does not reset, seed, or delete data. Run automated tests first, then use the website to complete the manual checks.
+This checklist is for the project. Automated integration tests create and drop their own temporary database; they do not reset or modify your existing `vehicle_service` database. Run automated tests first, then use the website to complete the manual checks.
 
 ## Automated checks
 
@@ -9,11 +9,11 @@ From the Codespaces terminal, run:
     python -m pip install -r requirements.txt
     python -m unittest discover -s tests -v
 
-With MySQL running and the original demo sample data present, run the full live-database suite as well:
+With MySQL running and the configured MySQL account allowed to create/drop databases, run the full integration suite as well:
 
     RUN_DB_INTEGRATION=1 python -m unittest discover -s tests -v
 
-The live integration suite executes every report, checks seeded-data text/numeric/date/combined filters, tests a create-edit-delete cycle, checks foreign-key and CHECK constraints, and checks /health. It creates and cleans up one temporary CUSTOMER record and does not reset the database.
+The integration suite builds a uniquely named temporary database from `schema.sql`, executes every report, checks seeded-data text/numeric/date/combined filters, tests a create-edit-delete cycle, checks foreign-key and CHECK constraints, checks `/health`, and drops the temporary database when finished. Your existing `vehicle_service` database is left untouched.
 
 ## Table filter tests
 
