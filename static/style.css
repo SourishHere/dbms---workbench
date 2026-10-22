@@ -82,3 +82,8 @@
 .remove-column:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:1050px){.create-column-row{grid-template-columns:repeat(2,minmax(0,1fr))}.create-check{padding-bottom:4px}}
 @media(max-width:600px){.create-column-row{grid-template-columns:1fr}.create-check{padding-bottom:0}}
+
+
+.create-column-row{grid-template-columns:minmax(130px,1.2fr) minmax(130px,1fr) auto auto auto minmax(145px,1fr) minmax(145px,1fr) auto}
+@media(max-width:1200px){.create-column-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.create-column-row{grid-template-columns:1fr}}
