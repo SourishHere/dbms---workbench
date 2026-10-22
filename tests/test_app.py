@@ -149,6 +149,9 @@ class DatabaseIntegrationTests(unittest.TestCase):
 
             schema_path = Path(__file__).resolve().parents[1] / "schema.sql"
             schema = schema_path.read_text(encoding="utf-8")
+            # Remove whole-line SQL comments before splitting on semicolons.
+            # A semicolon inside a comment must not become a standalone SQL statement.
+            schema = re.sub(r"(?m)^\s*--.*(?:\n|$)", "", schema)
             schema = schema.replace(
                 "CREATE DATABASE IF NOT EXISTS vehicle_service CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
                 "",
