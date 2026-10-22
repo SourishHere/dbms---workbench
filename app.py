@@ -131,9 +131,9 @@ def table_page(table):
         cols=table_info(conn,table)
         for col in cols:
             name=col["name"]; typ=col["type"].upper()
-            if any(t in typ for t in ("DATE","TIME","YEAR")):
+            if any(t in typ for t in ("DATE","TIME")):
                 kind="date"; low=request.args.get("filter_from_"+name,"").strip(); high=request.args.get("filter_to_"+name,"").strip()
-            elif any(t in typ for t in ("INT","DECIMAL","FLOAT","DOUBLE","NUMERIC")):
+            elif any(t in typ for t in ("INT","YEAR","DECIMAL","FLOAT","DOUBLE","NUMERIC")):
                 kind="number"; low=request.args.get("filter_min_"+name,"").strip(); high=request.args.get("filter_max_"+name,"").strip()
             else:
                 kind="text"; low=request.args.get("filter_"+name,"").strip(); high=""
