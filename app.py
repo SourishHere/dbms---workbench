@@ -612,49 +612,113 @@ def tables_page():
 
 @app.route("/table/<table>")
 def table_page(table):
-    if table not in TABLES: abort(404)
-    search=request.args.get("q","").strip(); where=[]; params=[]; filters=[]; invalid_filters=False
+    if table not in TABLES:
+        abort(404)
+
+    search = request.args.get("q", "").strip()
+    filters = []
+    where = []
+    params = []
+    invalid_filter_names = []
+
+    # Preserve every submitted column filter when switching between global
+    # search and the column-filter form. Clearing the global search removes
+    # only q; all filter_* parameters are retained.
+    clear_search_args = {
+        key: value for key, value in request.args.items()
+        if key != "q"
+    }
+    clear_search_url = url_for("table_page", table=table, **clear_search_args)
+
     with connect_db() as conn:
-        cols=table_info(conn,table)
+        cols = table_info(conn, table)
+
+        # First pass: collect and validate every filter before building/running
+        # the result query. Any invalid range blocks the query completely.
         for col in cols:
-            name=col["name"]; typ=col["type"].upper()
-            if any(t in typ for t in ("DATE","TIME")):
-                kind="date"; low=request.args.get("filter_from_"+name,"").strip(); high=request.args.get("filter_to_"+name,"").strip()
-            elif any(t in typ for t in ("INT","YEAR","DECIMAL","FLOAT","DOUBLE","NUMERIC")):
-                kind="number"; low=request.args.get("filter_min_"+name,"").strip(); high=request.args.get("filter_max_"+name,"").strip()
+            name = col["name"]
+            typ = col["type"].upper()
+            if any(token in typ for token in ("DATE", "TIME")):
+                kind = "date"
+                low = request.args.get("filter_from_" + name, "").strip()
+                high = request.args.get("filter_to_" + name, "").strip()
+            elif any(token in typ for token in ("INT", "YEAR", "DECIMAL", "FLOAT", "DOUBLE", "NUMERIC")):
+                kind = "number"
+                low = request.args.get("filter_min_" + name, "").strip()
+                high = request.args.get("filter_max_" + name, "").strip()
             else:
-                kind="text"; low=request.args.get("filter_"+name,"").strip(); high=""
-            filters.append({"name":name,"kind":kind,"lower":low,"upper":high})
-            if kind in ("date","number") and (low or high):
+                kind = "text"
+                low = request.args.get("filter_" + name, "").strip()
+                high = ""
+
+            field = {"name": name, "kind": kind, "lower": low, "upper": high}
+            filters.append(field)
+
+            if kind in ("date", "number") and (low or high):
                 try:
                     validate_filter_range(kind, low, high)
                 except (ValueError, InvalidOperation):
-                    flash("Invalid range for "+name+": enter valid values and ensure the minimum/from does not exceed the maximum/to.","error")
-                    invalid_filters=True
-                    continue
-            if kind=="date":
-                if low: where.append("CAST("+qi(name)+" AS CHAR)>=%s"); params.append(low)
-                if high: where.append("CAST("+qi(name)+" AS CHAR)<=%s"); params.append(high+(" 23:59:59" if "DATETIME" in typ and len(high)==10 else ""))
-            elif kind=="number":
-                try:
-                    low_number=Decimal(low) if low else None
-                    high_number=Decimal(high) if high else None
-                except (ValueError, InvalidOperation):
-                    flash("Invalid numeric range for "+name+". Correct the value before applying filters.","error")
-                    invalid_filters=True
-                    continue
-                if low_number is not None:
-                    where.append(qi(name)+">=%s"); params.append(low_number)
-                if high_number is not None:
-                    where.append(qi(name)+"<=%s"); params.append(high_number)
-            elif low: where.append("CAST("+qi(name)+" AS CHAR) LIKE %s ESCAPE '!'"); params.append("%"+escape_like(low)+"%")
-        if invalid_filters:
-            cols=columns_for(conn,table); rows=[]
+                    invalid_filter_names.append(name)
+
+        if invalid_filter_names:
+            for name in invalid_filter_names:
+                flash(
+                    "Invalid range for " + name +
+                    ": enter valid values and ensure the minimum/from does not exceed the maximum/to.",
+                    "error"
+                )
+            rows = []
         else:
-            cols,rows=get_rows(conn,table,search,where,params,250)
-        pk=primary_key(table_info(conn,table))
-        fk_errors=foreign_key_issue_count(conn)
-    return render_template("table.html",table=table,label=LABELS[table],columns=[c["name"] for c in cols],rows=rows,pk=pk,search=search,filter_fields=filters,has_column_filters=any(f["lower"] or f["upper"] for f in filters),total=len(rows),fk_error_count=fk_errors,is_custom_table=table not in BUILTIN_TABLES)
+            # Second pass: build SQL conditions only after all filters validate.
+            for field in filters:
+                name = field["name"]
+                kind = field["kind"]
+                low = field["lower"]
+                high = field["upper"]
+                typ = next(col["type"].upper() for col in cols if col["name"] == name)
+
+                if kind == "date":
+                    if low:
+                        where.append("CAST(" + qi(name) + " AS CHAR)>=%s")
+                        params.append(low)
+                    if high:
+                        where.append("CAST(" + qi(name) + " AS CHAR)<=%s")
+                        params.append(
+                            high + (" 23:59:59" if "DATETIME" in typ and len(high) == 10 else "")
+                        )
+                elif kind == "number":
+                    low_number = Decimal(low) if low else None
+                    high_number = Decimal(high) if high else None
+                    if low_number is not None:
+                        where.append(qi(name) + ">=%s")
+                        params.append(low_number)
+                    if high_number is not None:
+                        where.append(qi(name) + "<=%s")
+                        params.append(high_number)
+                elif low:
+                    where.append("CAST(" + qi(name) + " AS CHAR) LIKE %s ESCAPE '!'")
+                    params.append("%" + escape_like(low) + "%")
+
+            cols, rows = get_rows(conn, table, search, where, params, 250)
+
+        pk = primary_key(table_info(conn, table))
+        fk_errors = foreign_key_issue_count(conn)
+
+    return render_template(
+        "table.html",
+        table=table,
+        label=LABELS[table],
+        columns=[col["name"] for col in cols],
+        rows=rows,
+        pk=pk,
+        search=search,
+        filter_fields=filters,
+        has_column_filters=any(field["lower"] or field["upper"] for field in filters),
+        total=len(rows),
+        fk_error_count=fk_errors,
+        is_custom_table=table not in BUILTIN_TABLES,
+        clear_search_url=clear_search_url
+    )
 
 def render_record_form(table,mode,record=None):
     with connect_db() as conn: cols=form_fields(conn,table)
