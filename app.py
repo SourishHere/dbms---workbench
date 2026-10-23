@@ -115,6 +115,34 @@ def primary_key(cols):
     keys=[c["name"] for c in cols if c.get("pk")]
     return keys[0] if len(keys)==1 else None
 
+# Preserve the original ID ranges used by the demo data while reusing deleted IDs.
+ID_STARTS = {
+    "CUSTOMER": 101,
+    "VEHICLE_MODEL": 201,
+    "MECHANIC": 301,
+    "SERVICE_TYPE": 401,
+    "SUPPLIER": 501,
+    "VEHICLE": 601,
+    "APPOINTMENT": 701,
+    "SERVICE_RECORD": 801,
+    "PART": 901,
+    "INVENTORY": 1001,
+    "INVOICE": 1101,
+    "PAYMENT": 1201,
+    "WARRANTY": 1301,
+    "FEEDBACK": 1401,
+}
+
+def next_available_id(conn, table, pk):
+    cur = conn.cursor()
+    cur.execute("SELECT " + qi(pk) + " FROM " + qi(table) + " ORDER BY " + qi(pk))
+    used_ids = {int(row[0]) for row in cur.fetchall() if row[0] is not None}
+    cur.close()
+    candidate = ID_STARTS.get(table, 1)
+    while candidate in used_ids:
+        candidate += 1
+    return candidate
+
 def count_rows(conn, table):
     cur=conn.cursor(); cur.execute("SELECT COUNT(*) FROM "+qi(table)); n=cur.fetchone()[0]; cur.close(); return n
 
@@ -750,6 +778,10 @@ def add_record(table):
         if not data:
             flash("Please enter values for the record.","error"); return render_record_form(table,"add")
         try:
+            pk = primary_key(cols)
+            pk_column = next((col for col in cols if col["name"] == pk), None) if pk else None
+            if pk_column and pk_column["identity"] and pk not in data:
+                data[pk] = next_available_id(conn, table, pk)
             names=list(data); sql="INSERT INTO "+qi(table)+" ("+",".join(qi(n) for n in names)+") VALUES ("+",".join(["%s"]*len(names))+")"
             cur=conn.cursor(); cur.execute(sql,[data[n] for n in names]); conn.commit(); cur.close()
             flash("Record added to "+LABELS[table]+".","success"); return redirect(url_for("table_page",table=table))
