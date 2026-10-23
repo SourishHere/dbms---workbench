@@ -72,6 +72,19 @@ class RouteTests(unittest.TestCase):
         self.assertIn(b"No matching records", response.data)
         get_rows.assert_not_called()
 
+    def test_clear_search_link_preserves_column_filters(self):
+        p1, p2, p3, p4 = self.table_patches()
+        with p1, p2, p3, p4, patch.object(project, "get_rows", return_value=(self.columns, [])):
+            response = self.client.get(
+                "/table/VEHICLE?q=swift&filter_Color=White&filter_min_Mileage=10000"
+            )
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn(
+            'href="/table/VEHICLE?filter_Color=White&amp;filter_min_Mileage=10000">Clear search</a>',
+            html
+        )
+
     def test_partial_text_filter_escapes_sql_wildcards(self):
         p1, p2, p3, p4 = self.table_patches()
         with p1, p2, p3, p4, patch.object(project, "get_rows", return_value=(self.columns, [])) as get_rows:
